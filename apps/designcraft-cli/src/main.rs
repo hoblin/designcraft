@@ -334,6 +334,7 @@ fn run(args: &[String]) -> Result<(), String> {
                     }
                 } else {
                     export(&mut s, &out, page, scale)?;
+                    warn_overset(&s);
                 }
             }
             "--all-pages" => {
@@ -343,11 +344,18 @@ fn run(args: &[String]) -> Result<(), String> {
                 for p in 0..n {
                     export(&mut s, &format!("{dir}/page-{:03}.png", p + 1), p, scale)?;
                 }
+                warn_overset(&s);
             }
             other => return Err(format!("run was given `{other}`, which it doesn't take. {RUN_TAKES}")),
         }
     }
     Ok(())
+}
+
+fn warn_overset(s: &Session) {
+    for w in s.overset() {
+        eprintln!("warning: {w}");
+    }
 }
 
 fn export(s: &mut Session, out: &str, page: usize, scale: f64) -> Result<(), String> {

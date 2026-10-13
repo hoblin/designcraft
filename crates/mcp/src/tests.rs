@@ -294,6 +294,17 @@ fn files_place_and_export() {
     let out = tmp("page.png");
     let e = ok(&mut s, "export_png", json!({"path": out, "scale": 0.5}));
     assert_eq!(e["width"], 306);
+    assert!(e.get("warnings").is_none(), "{e}");
+    let tiny = ok(
+        &mut s,
+        "execute",
+        json!({"command": "frame.create", "params": {"rect": [36, 300, 100, 320], "content": "text", "text": "This will not fit"}}),
+    );
+    let e = ok(&mut s, "export_png", json!({"path": out, "scale": 0.5}));
+    let warning = e["warnings"][0].as_str().unwrap_or_default();
+    assert!(warning.starts_with(&format!("text frame {} on page 1 doesn't fit its text", tiny["id"])), "{e}");
+    assert!(ok(&mut s, "render_page", json!({"scale": 0.1}))["warnings"][0].as_str().is_some());
+    ok(&mut s, "execute", json!({"command": "edit.clear", "params": {"ids": [tiny["id"]]}}));
     assert!(std::fs::read(&out).unwrap().starts_with(PNG_MAGIC));
     let r = call(&mut s, "render_page", json!({"path": tmp("render.png")}));
     assert_eq!(r["isError"], false);

@@ -484,7 +484,11 @@ fn render_page(b: &mut dyn Backend, a: &Args) -> Result<ToolResult, String> {
         let png = designcraft_engine::cmd::base64_decode(&b64);
         designcraft_engine::atomic::write_atomic(std::path::Path::new(path), &png).map_err(|e| format!("write {path}: {e}"))?;
     }
-    Ok(ToolResult::image(b64, &json!({"width": r.get("width"), "height": r.get("height"), "path": path})))
+    let mut meta = json!({"width": r.get("width"), "height": r.get("height"), "path": path});
+    if let Some(w) = r.get("warnings") {
+        meta["warnings"] = w.clone();
+    }
+    Ok(ToolResult::image(b64, &meta))
 }
 
 fn screenshot(b: &mut dyn Backend, a: &Args) -> Result<ToolResult, String> {

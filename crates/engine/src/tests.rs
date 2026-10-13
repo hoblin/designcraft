@@ -731,6 +731,57 @@ fn a_missing_object_or_index_is_named() {
 }
 
 #[test]
+fn an_export_names_the_frame_whose_text_does_not_fit() {
+    let mut s = session();
+    assert!(s.overset().is_empty());
+    let r = s.call("frame.create", &json!({"rect": [36, 36, 136, 76], "content": "text", "text": "32"})).unwrap();
+    let (id, story) = (r["id"].clone(), r["story"].clone());
+    s.call("text.select", &json!({"story": story, "anchor": 0, "focus": 2})).unwrap();
+    s.call("type.char", &json!({"attrs": {"size": 32}})).unwrap();
+    let whole = format!("text frame {id} on page 1 doesn't fit its text: none of “32” is shown; enlarge the frame or make the type smaller");
+    assert_eq!(s.overset(), std::slice::from_ref(&whole));
+    let pdf = s.call("file.exportPdf", &json!({})).unwrap();
+    assert_eq!(pdf["warnings"], json!([whole]));
+    s.call("type.char", &json!({"attrs": {"size": 12}})).unwrap();
+    assert!(s.overset().is_empty(), "fits again");
+
+    let long = "The quick brown fox jumps over the lazy dog and keeps running into the night without a pause";
+    let r = s.call("frame.create", &json!({"rect": [36, 300, 200, 324], "content": "text", "text": long})).unwrap();
+    let (first, story) = (r["id"].clone(), r["story"].clone());
+    let [said] = s.overset().try_into().unwrap_or_default();
+    assert!(said.starts_with(&format!("text frame {first} on page 1 doesn't fit its text: the last ")), "{said}");
+    assert!(
+        said.contains(" of its 92 characters, from “") && said.ends_with("…”, are not shown; enlarge the frame or make the type smaller"),
+        "{said}"
+    );
+    let r = s.call("frame.create", &json!({"rect": [36, 340, 200, 364], "content": "unassigned"})).unwrap();
+    let (next, sid) = (designcraft_doc::ItemId(r["id"].as_u64().unwrap()), designcraft_doc::StoryId(story.as_u64().unwrap()));
+    s.edit(|d, _| {
+        d.story_mut(sid).unwrap().frames.push(next);
+        d.item_mut(next).unwrap().content = designcraft_doc::Content::Text(designcraft_doc::TextFrame { story: sid, options: Default::default() });
+        Ok(())
+    })
+    .unwrap();
+    let [said] = s.overset().try_into().unwrap_or_default();
+    assert!(said.starts_with(&format!("the thread ending in text frame {} on page 1 doesn't fit its text", next.0)), "{said}");
+}
+
+#[test]
+fn a_create_command_says_which_stroke_it_gave_by_default() {
+    let mut s = session();
+    let note = |what: &str| format!("1 pt [Black], the default for {what}; object.stroke {{\"swatch\":\"[None]\"}} removes it");
+    let r = s.call("frame.create", &json!({"rect": [36, 36, 300, 200], "content": "unassigned"})).unwrap();
+    assert_eq!(r["stroke"], note("an unassigned frame (a graphic frame gets none)"));
+    assert_eq!(s.call("line.create", &json!({"a": [0, 0], "b": [10, 10]})).unwrap()["stroke"], note("a line"));
+    let path = json!({"anchors": [{"p": [0, 0]}, {"p": [10, 10]}, {"p": [0, 10]}], "closed": true});
+    assert_eq!(s.call("path.create", &path).unwrap()["stroke"], note("a path"));
+    let graphic = s.call("frame.create", &json!({"rect": [36, 36, 300, 200]})).unwrap();
+    assert_eq!(graphic.as_object().unwrap().keys().collect::<Vec<_>>(), ["id"]);
+    let text = s.call("frame.create", &json!({"rect": [36, 36, 300, 200], "content": "text"})).unwrap();
+    assert_eq!(text.as_object().unwrap().keys().collect::<Vec<_>>(), ["id", "story"]);
+}
+
+#[test]
 fn a_font_that_is_not_installed_is_named_in_the_answer() {
     let mut s = session();
     let r = s.call("frame.create", &json!({"rect": [36, 36, 300, 200], "content": "text", "text": "Hi"})).unwrap();

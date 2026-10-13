@@ -83,7 +83,7 @@ and its second character starts at 3. An offset inside a character snaps back to
 | `open_document` / `save_document` | Native `.designcraft` files |
 | `place_image` | Image from `path` or `base64` into `frame`, the selected frame, or a new frame at x, y, width |
 | `render_page` | Render a page → MCP image content (PNG, base64); optional `path` to also save it |
-| `export_png` | Write a page as PNG (or JPEG by extension) |
+| `export_png` | Write a page as PNG (or JPEG by extension); `warnings` names every text frame whose text doesn't fit (so does `render_page`) |
 | `screenshot` | Whole app window → image content (connected only; captured to a temp file and read back) |
 | `select_tool` | Activate a tool (`selection`, `type`, `rectangleFrame`, `line`, …) |
 | `pointer` | Mouse gesture events (`down`/`drag`/`up`/`move`/`doubleclick`) for the active tool, optional `tool` |

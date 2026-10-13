@@ -455,6 +455,13 @@ impl Session {
         Ok(said.into())
     }
 
+    /// What an export of the active document leaves out: one sentence per story whose text doesn't
+    /// fit its frames, naming the frame the text runs out of. Empty when everything fits or no
+    /// document is open.
+    pub fn overset(&self) -> Vec<String> {
+        self.active().map(|st| describe::overset(&st.doc, &self.cache)).unwrap_or_default()
+    }
+
     /// A session with one new document open and nothing selected.
     pub fn with_new() -> Self {
         let mut s = Session::new();

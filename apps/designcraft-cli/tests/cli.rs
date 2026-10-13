@@ -124,7 +124,10 @@ fn run_help_says_what_the_ids_do_not() {
         "frame.create selects the frame it creates",
         "selection.set {\"ids\": [...]} selects objects",
         "\"story\": \"$0.story\" passes 9",
+        "An unassigned frame, a line and a path get a 1 pt [Black] stroke",
+        "An answer in words has no keys",
         "If a command fails, run stops there",
+        "a `warning:` line for each text frame whose text doesn't fit",
     ] {
         assert!(help.contains(fact), "missing: {fact}\n{help}");
     }
@@ -147,6 +150,7 @@ Parameters:
   text, optional       string
   caret, optional      bool
   vertical, optional   bool (text: a new vertical story)
+Answers with {id, story (text), stroke (unassigned: the 1 pt [Black] default it got)}.
 
 Run it with: designcraft-cli run --cmd 'frame.create={…}'
 "
@@ -246,6 +250,70 @@ fn a_failing_command_says_which_and_what_was_not_written() {
         String::from_utf8_lossy(&out.stderr),
         "designcraft-cli: --cmd 1 of 1: command `text.insert` is not available right now: no text insertion point. text.select {\"story\": …, \"anchor\": 0, \"focus\": 0} puts the caret in a story; frame.create with \"content\": \"text\" puts it in the new frame. Nothing after it ran.\n"
     );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_reference_into_a_worded_answer_says_where_the_id_is() {
+    let out = cli()
+        .args([
+            "run",
+            "--cmd",
+            r#"frame.create={"rect":[36,36,300,200]}"#,
+            "--cmd",
+            r#"object.fill={"swatch":"[Black]"}"#,
+            "--cmd",
+            r#"object.lock={"ids":["$last.id"]}"#,
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let id = stdout.lines().next().unwrap().trim_start_matches("frame.create → {\"id\":").trim_end_matches('}').to_string();
+    assert_eq!(
+        String::from_utf8_lossy(&out.stderr),
+        format!(
+            "designcraft-cli: --cmd 3 of 3: `$last.id`: step 1 (counted from 0) answered in words, “changed frame {id} on page 1”, not with keys, so it has no `id`; step 0 answered with `id`: `$0.id`. Nothing after it ran.\n"
+        )
+    );
+}
+
+#[test]
+fn an_export_warns_about_text_that_does_not_fit() {
+    let dir = std::env::temp_dir().join(format!("dc-cli-overset-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (png, pdf, pages) = (dir.join("a.png"), dir.join("a.pdf"), dir.join("pages"));
+    let out = cli()
+        .args([
+            "run",
+            "--cmd",
+            r#"frame.create={"rect":[36,36,136,76],"content":"text","text":"32"}"#,
+            "--cmd",
+            r#"text.select={"story":"$0.story","anchor":0,"focus":2}"#,
+            "--cmd",
+            r#"type.char={"attrs":{"size":32}}"#,
+            "--cmd",
+            r#"layout.pages.insert={"count":1}"#,
+            "--export",
+            png.to_str().unwrap(),
+            "--export",
+            pdf.to_str().unwrap(),
+            "--all-pages",
+            pages.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{err}");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let id = stdout.lines().next().unwrap().trim_start_matches("frame.create → {\"id\":").split(',').next().unwrap().to_string();
+    let warning =
+        format!("warning: text frame {id} on page 1 doesn't fit its text: none of “32” is shown; enlarge the frame or make the type smaller\n");
+    let lines: Vec<&str> = err.lines().collect();
+    assert_eq!(lines.len(), 7, "{err}");
+    assert!(lines[0].starts_with("wrote ") && lines[1] == warning.trim_end(), "{err}");
+    assert!(lines[2].starts_with("wrote ") && lines[3] == warning.trim_end(), "{err}");
+    assert!(lines[4].starts_with("wrote ") && lines[5].starts_with("wrote ") && lines[6] == warning.trim_end(), "once per --all-pages: {err}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

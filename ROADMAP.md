@@ -2,7 +2,7 @@
 
 **Stage: pre-alpha** · next: alpha, ~0% and ~15–25 h away; beta ~28 points and ~420–750 h beyond that (the core-workflow gate, not the percentage: ready for real work is already ~47%)
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (the CLI, MCP and control channel speak to agents in words) · **Target:** Adobe InDesign 2026
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (exports name the text that doesn't fit; create commands name the default stroke) · **Target:** Adobe InDesign 2026
 
 DesignCraft aims at full Adobe InDesign parity, and to be better: faster, open (documented JSON
 format + IDML), scriptable by agents (MCP), and available on the web.
@@ -129,6 +129,7 @@ list) · [roadmap.md](docs/roadmap.md) (milestones, plan) · [parity-checklist.m
 
 Newest first.
 
+- **2026-10-13** · Answers say what an agent didn't ask for and what wasn't drawn: every export (CLI, `file.exportPdf`, MCP `export_png`/`render_page`, `app.export`) names each text frame whose text doesn't fit; `frame.create` (unassigned), `line.create` and `path.create` answer with the 1 pt [Black] stroke they gave by default and how to remove it; a `$N.key` reference into an answer in words says so and names the steps that answered with that key. No readiness percentage change.
 - **2026-10-13** · The fork releases itself: a `v<upstream>-bondata.<n>` tag builds `designcraft` and `designcraft-cli` for Linux x86_64 with craft-fonts embedded and publishes `designcraft-<version>-linux-x86_64.tar.gz` with `SHA256SUMS.txt` as a GitHub release, in upstream's tarball layout. Nothing for macOS, Windows or FreeBSD. No readiness percentage change.
 - **2026-10-13** · `designcraft-cli` speaks to agents in words: `help` and every subcommand's `--help` explain the CLI with the facts the command ids don't say; `describe` spells out a command's parameters and what it acts on, `commands` lists one command per line; every `run --cmd` prints `COMMAND → ANSWER`, a command with no answer of its own says what it changed, and an error says how the input was read, what is wrong and the form that works. The CLI, MCP and the control channel refuse parameters a command doesn't take. No readiness percentage change.
 - **2026-10-12** · macOS Dock Quit uses the same unsaved-document prompts as window and menu Quit. Repeated requests keep the current answers; Cancel retains every tab and unsaved recovery checkpoint, and completed Save/Don't Save answers exit through the ordinary event loop. No readiness percentage change.

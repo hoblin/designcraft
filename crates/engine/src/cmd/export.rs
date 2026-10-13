@@ -587,6 +587,7 @@ fn export_pdf(s: &mut Session, p: &Value) -> Result<Value> {
     {
         r.warnings.push(format!("transparency flattened: {n} region(s) rasterised"));
     }
+    r.warnings.extend(s.overset());
     match str_param(p, "path") {
         Some(path) => {
             write_file(path, &r.bytes)?;
