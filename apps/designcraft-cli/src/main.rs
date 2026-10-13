@@ -324,15 +324,15 @@ fn run(args: &[String]) -> Result<(), String> {
                 if out.ends_with(".epub") {
                     let r = s.execute("file.exportEpub", &json!({"path": out})).map_err(|e| e.to_string())?;
                     eprintln!("wrote {out} ({} bytes)", r["bytes"]);
-                    warn_overset(&s);
+                    print_warnings(&r);
                 } else if out.ends_with(".pdf") {
                     let mut p = pdf_opts.clone();
                     p["path"] = json!(out);
                     let r = s.execute("file.exportPdf", &p).map_err(|e| e.to_string())?;
                     eprintln!("wrote {out} ({} pages, {} bytes)", r["pages"], r["bytes"]);
-                    for w in r["warnings"].as_array().into_iter().flatten() {
-                        eprintln!("warning: {}", w.as_str().unwrap_or_default());
-                    }
+                    print_warnings(&r);
+                } else if out.to_ascii_lowercase().ends_with(".idml") {
+                    export(&mut s, &out, page, scale)?;
                 } else {
                     export(&mut s, &out, page, scale)?;
                     warn_overset(&s);
@@ -359,10 +359,17 @@ fn warn_overset(s: &Session) {
     }
 }
 
+fn print_warnings(answer: &Value) {
+    for w in answer["warnings"].as_array().into_iter().flatten() {
+        eprintln!("warning: {}", w.as_str().unwrap_or_default());
+    }
+}
+
 fn export(s: &mut Session, out: &str, page: usize, scale: f64) -> Result<(), String> {
     if out.to_ascii_lowercase().ends_with(".idml") {
         let r = s.execute("file.exportIdml", &json!({"path": out})).map_err(|e| e.to_string())?;
         eprintln!("wrote {out} ({} bytes)", r["bytes"]);
+        print_warnings(&r);
         return Ok(());
     }
     if out.ends_with(".designcraft") {
@@ -529,9 +536,7 @@ fn script(args: &[String]) -> Result<(), String> {
                 // PNG / JPEG of the first page.
                 b.call("app.export", p)?
             };
-            for w in r["warnings"].as_array().into_iter().flatten() {
-                eprintln!("warning: {}", w.as_str().unwrap_or_default());
-            }
+            print_warnings(&r);
         }
     }
     outln!("{}", serde_json::to_string_pretty(&report.to_json()).unwrap_or_default());

@@ -22,14 +22,16 @@ fn export_idml(s: &mut Session, p: &Value) -> Result<Value> {
     let st = s.doc()?;
     let opts = designcraft_idml::ExportOptions { embed_images: p.get("embedImages").and_then(Value::as_bool).unwrap_or(true) };
     let bytes = designcraft_idml::export_idml_with(&st.doc, &opts);
-    match str_param(p, "path") {
+    let mut r = match str_param(p, "path") {
         Some(path) => {
             #[cfg(not(target_arch = "wasm32"))]
             crate::atomic::write_file(path, &bytes)?;
-            Ok(json!({"path": path, "bytes": bytes.len()}))
+            json!({"path": path, "bytes": bytes.len()})
         }
-        None => Ok(json!({"base64": base64_encode(&bytes), "bytes": bytes.len()})),
-    }
+        None => json!({"base64": base64_encode(&bytes), "bytes": bytes.len()}),
+    };
+    s.warn_overset(&mut r);
+    Ok(r)
 }
 
 /// Import IDML bytes; `dir` is the folder the package came from (for relative link lookup).

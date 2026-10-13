@@ -40,9 +40,10 @@ fn script_from_stdin_with_references_saves_and_exports() {
 fn a_script_export_warns_about_text_that_does_not_fit() {
     let dir = std::env::temp_dir().join(format!("dc-cli-script-overset-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let (png, pdf) = (dir.join("a.png"), dir.join("a.pdf"));
+    let outs: Vec<String> = ["a.png", "a.pdf", "a.idml", "a.epub"].iter().map(|n| dir.join(n).to_string_lossy().into_owned()).collect();
     let mut child = cli()
-        .args(["script", "-", "--export", png.to_str().unwrap(), "--export", pdf.to_str().unwrap()])
+        .args(["script", "-"])
+        .args(outs.iter().flat_map(|o| ["--export", o]))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -60,7 +61,7 @@ fn a_script_export_warns_about_text_that_does_not_fit() {
     let id = v["results"][0]["id"].as_u64().unwrap();
     let err = String::from_utf8_lossy(&out.stderr);
     let warnings: Vec<&str> = err.lines().filter(|l| l.starts_with("warning: ")).collect();
-    assert_eq!(warnings.len(), 2, "one per export: {err}");
+    assert_eq!(warnings.len(), 4, "one per export: {err}");
     assert!(warnings.iter().all(|w| w.starts_with(&format!("warning: text frame {id} on page 1 doesn't fit its text: the last "))), "{err}");
     let _ = std::fs::remove_dir_all(&dir);
 }
