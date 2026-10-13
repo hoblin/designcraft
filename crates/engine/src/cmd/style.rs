@@ -236,7 +236,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Ink Manager",
             [],
             None,
-            "{allToProcess?: bool, ink?: spot swatch, toProcess?: bool, alias?: spot swatch | null} — output: spots to process, ink aliases",
+            "{allToProcess?: bool, ink?: spot swatch, toProcess?: bool, alias?: spot swatch|null} — output: spots to process, ink aliases",
             has_doc,
             |s, p| {
                 let all = p.get("allToProcess").and_then(Value::as_bool);
@@ -320,7 +320,7 @@ pub fn specs() -> Vec<CommandSpec> {
                 })
             }
         ),
-        cmd!("swatch.moveToGroup", "Move to Color Group", [], None, "{swatches: [names], group: name | null (top level)}", has_doc, |s, p| {
+        cmd!("swatch.moveToGroup", "Move to Color Group", [], None, "{swatches: [names], group: name|null (top level)}", has_doc, |s, p| {
             let names: Vec<String> = p
                 .get("swatches")
                 .and_then(Value::as_array)

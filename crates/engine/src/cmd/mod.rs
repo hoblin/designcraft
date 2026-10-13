@@ -248,8 +248,7 @@ pub struct Param<'a> {
 /// The top-level parameters of a params doc: `{spread?, rect: [x0,y0,x1,y1] (spread coords)} | {id}`
 /// gives `spread` (optional), `rect` (about `[x0,y0,x1,y1] (spread coords)`) and `id` (in object 1).
 /// A spaced ` | ` separates alternatives, an unspaced `|` alternative values. Text after `→` is the
-/// answer and is skipped. Errs where the doc strays from that grammar, so a doc that reads as prose
-/// is caught by the test over every command.
+/// answer and is skipped. Errs where the doc strays from that grammar.
 pub fn parse_params(doc: &str) -> std::result::Result<Vec<Param<'_>>, String> {
     let doc = doc.split('→').next().unwrap_or_default();
     let mut params: Vec<Param> = vec![];
@@ -321,7 +320,8 @@ pub fn parse_params(doc: &str) -> std::result::Result<Vec<Param<'_>>, String> {
     Ok(params)
 }
 
-/// Refuse keys `spec`'s doc doesn't name, so a misnamed key is an answer and never a silent default.
+/// Refuse keys `spec`'s doc doesn't name. An object with `…` takes any key; one without is checked
+/// whole once any of its keys is given, so `{attrs: {…}} | {size?, …}` refuses `{attrs, bogus}`.
 pub(crate) fn check_params(spec: &CommandSpec, p: &Value) -> Result<()> {
     let given = match p {
         Value::Null => return Ok(()),
@@ -336,11 +336,22 @@ pub(crate) fn check_params(spec: &CommandSpec, p: &Value) -> Result<()> {
             return Err(bad(spec.id, format!("parameters are a JSON object, not {kind}")));
         }
     };
-    let Ok(known) = param_keys(spec.params) else { return Ok(()) };
-    if known.contains(&"…") {
-        return Ok(());
-    }
-    let unknown: Vec<String> = given.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
+    let Ok(params) = parse_params(spec.params) else { return Ok(()) };
+    let objects = params.iter().map(|p| p.object).max().map_or(0, |n| n + 1);
+    let keys_of = |o: usize| params.iter().filter(|p| p.object == o).map(|p| p.name).collect::<Vec<_>>();
+    let unknown_in = |keys: &[&str]| given.keys().filter(|k| !keys.contains(&k.as_str())).cloned().collect::<Vec<String>>();
+    let open: Vec<usize> = (0..objects).filter(|o| keys_of(*o).contains(&"…")).collect();
+    let unknown = if open.is_empty() {
+        unknown_in(&param_keys(spec.params).unwrap_or_default())
+    } else {
+        (0..objects)
+            .filter(|o| !open.contains(o))
+            .map(keys_of)
+            .filter(|keys| given.keys().any(|k| keys.contains(&k.as_str())))
+            .map(|keys| unknown_in(&keys))
+            .find(|u| !u.is_empty())
+            .unwrap_or_default()
+    };
     if unknown.is_empty() {
         return Ok(());
     }

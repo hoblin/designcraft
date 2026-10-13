@@ -511,7 +511,7 @@ fn execute_answers_in_words() {
     ok(&mut s, "execute", json!({"command": "text.select", "params": {"story": f["story"], "anchor": 0, "focus": 2}}));
     let r = call(&mut s, "execute", json!({"command": "type.char", "params": {"attrs": {"size": 28}}}));
     assert_eq!(r["isError"], false, "{r}");
-    assert_eq!(text_of(&r), format!("changed the text of story {}", f["story"]));
+    assert_eq!(text_of(&r), format!("changed story {}", f["story"]));
     let r = call(&mut s, "execute", json!({"command": "edit.deselectAll"}));
     assert_eq!(text_of(&r), "no text is selected");
 }

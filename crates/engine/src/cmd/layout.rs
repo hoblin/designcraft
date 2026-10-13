@@ -233,7 +233,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Document Setup…",
             ["File"],
             Some("Cmd+Alt+P"),
-            "{width?, height?, pages?: count, startPage?: n, facingPages?, binding?: leftToRight|rightToLeft, intent?: print|web|mobile, bleed?, slug?: n | [top, bottom, inside, outside], adjustLayout?: bool (objects follow the new page size)} → the document setup",
+            "{width?, height?, pages?: count, startPage?: n, facingPages?, binding?: leftToRight|rightToLeft, intent?: print|web|mobile, bleed?, slug?: n|[top, bottom, inside, outside], adjustLayout?: bool (objects follow the new page size)} → the document setup",
             has_doc,
             |s, p| {
                 let p = p.clone();

@@ -139,13 +139,14 @@ fn describe_spells_out_the_parameters() {
 
 Parameters:
   spread, optional
-  rect                [x0,y0,x1,y1] (spread coords)
-  shape, optional     rectangle|ellipse|polygon
-  content, optional   graphic|text|unassigned
-  sides, optional     3–100 (polygon; default 6)
-  text, optional      string
-  caret, optional     bool
-  vertical, optional  bool (text: a new vertical story)
+  rect                 [x0,y0,x1,y1] (spread coords)
+  shape, optional      rectangle|ellipse|polygon
+  content, optional    graphic|text|unassigned
+  sides, optional      3–100 (polygon; default 6)
+  starInset, optional  0–100 (% for a star polygon)
+  text, optional       string
+  caret, optional      bool
+  vertical, optional   bool (text: a new vertical story)
 
 Run it with: designcraft-cli run --cmd 'frame.create={…}'
 "
@@ -230,7 +231,7 @@ fn a_failing_command_says_which_and_what_was_not_written() {
         .output()
         .unwrap();
     assert!(!out.status.success());
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "frame.create → {\"id\":8}\n");
+    assert!(String::from_utf8_lossy(&out.stdout).starts_with("frame.create → {\"id\":"));
     assert_eq!(
         String::from_utf8_lossy(&out.stderr),
         format!(
@@ -267,9 +268,14 @@ fn every_command_prints_what_it_did() {
         .output()
         .unwrap();
     assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let first: serde_json::Value = serde_json::from_str(stdout.lines().next().unwrap().trim_start_matches("frame.create → ")).unwrap();
+    let (id, story) = (&first["id"], &first["story"]);
     assert_eq!(
-        String::from_utf8_lossy(&out.stdout),
-        "frame.create → {\"id\":8,\"story\":9}\ntext.select → selected bytes 0–5 of story 9, “Hello”\ntype.char → changed the text of story 9\nedit.deselectAll → no text is selected\nselection.set → selected text frame 8 on page 1\n"
+        stdout,
+        format!(
+            "frame.create → {first}\ntext.select → selected bytes 0–5 of story {story}, “Hello”\ntype.char → changed story {story}\nedit.deselectAll → no text is selected\nselection.set → selected text frame {id} on page 1\n"
+        )
     );
 }
 

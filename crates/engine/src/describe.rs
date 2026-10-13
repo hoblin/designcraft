@@ -132,8 +132,8 @@ fn document(old: &Document, new: &Document) -> Vec<String> {
         .collect();
     match stories.as_slice() {
         [] => {}
-        [one] => said.push(format!("changed the text of story {one}")),
-        many => said.push(format!("changed the text of stories {}", many.join(", "))),
+        [one] => said.push(format!("changed story {one}")),
+        many => said.push(format!("changed stories {}", many.join(", "))),
     }
     let deleted_stories = old.stories.keys().filter(|id| !new.stories.contains_key(id)).count();
     if deleted_stories > 0 && deleted.is_empty() {
@@ -164,9 +164,15 @@ fn document(old: &Document, new: &Document) -> Vec<String> {
     if parents_changed {
         said.push("changed the parent pages".into());
     }
-    let page_changed = old_pages.len() == new_pages.len() && kept_old == kept_new && new.pages().any(|(i, _, p)| old.page(i).is_some_and(|o| o != p));
-    if page_changed && added.is_empty() {
-        said.push("changed the pages' size, margins or columns".into());
+    let same_pages = old_pages.len() == new_pages.len() && kept_old == kept_new && added.is_empty();
+    let reparented: Vec<usize> = new.pages().filter(|(i, _, p)| old.page(*i).is_some_and(|o| o.parent != p.parent)).map(|(i, _, _)| i).collect();
+    if same_pages && !reparented.is_empty() {
+        said.push(format!("changed the parent applied to {}", pages(new, &reparented)));
+    }
+    let changed_pages: Vec<usize> =
+        new.pages().filter(|(i, _, p)| old.page(*i).is_some_and(|o| o != *p && o.parent == p.parent)).map(|(i, _, _)| i).collect();
+    if same_pages && !changed_pages.is_empty() {
+        said.push(format!("changed {}", pages(new, &changed_pages)));
     }
     if !parts.is_empty() {
         said.push(format!("changed the document's {}", parts.join(", ")));

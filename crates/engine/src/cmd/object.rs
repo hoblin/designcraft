@@ -32,7 +32,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Create Frame",
             [],
             None,
-            "{spread?, rect: [x0,y0,x1,y1] (spread coords), shape?: rectangle|ellipse|polygon, content?: graphic|text|unassigned, sides?: 3–100 (polygon; default 6), text?: string, caret?: bool, vertical?: bool (text: a new vertical story)}",
+            "{spread?, rect: [x0,y0,x1,y1] (spread coords), shape?: rectangle|ellipse|polygon, content?: graphic|text|unassigned, sides?: 3–100 (polygon; default 6), starInset?: 0–100 (% for a star polygon), text?: string, caret?: bool, vertical?: bool (text: a new vertical story)}",
             has_doc,
             frame_create
         ),
@@ -477,7 +477,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Directional Feather",
             ["Object", "Effects"],
             None,
-            "{on?: bool, widths?: [top, left, bottom, right] | number, ids?}",
+            "{on?: bool, widths?: [top, left, bottom, right]|number, ids?}",
             has_selection,
             |s, p| {
                 let p2 = p.clone();
@@ -577,7 +577,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Frame Fitting Options…",
             ["Object", "Fitting"],
             None,
-            "{autoFit?: bool, fitting?: none|fillProportionally|fitProportionally|fitContentToFrame|centerContent, align?: 0..8 (reference point, 4 = centre), crop?: n | [t, l, b, r] (negative adds space), ids?}",
+            "{autoFit?: bool, fitting?: none|fillProportionally|fitProportionally|fitContentToFrame|centerContent, align?: 0..8 (reference point, 4 = centre), crop?: n|[t, l, b, r] (negative adds space), ids?}",
             has_selection,
             fitting_options
         ),

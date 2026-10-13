@@ -31,7 +31,8 @@ What the ids don't say:
 - Positions are points in spread space, x to the right and y down; the top-left of a single page is
   (0, 0), and a Letter page is 612×792. A rect is [x0, y0, x1, y1]: two corners, not a width and
   height.
-- Pages are counted from 0 in parameters (`page`, `--page`) and named 1, 2, 3… in answers. Objects get
+- Pages are counted from 0 in parameters (`page`, `--page`) and named in answers as the document
+  numbers them: 1, 2, 3… unless a section renumbers them (iii, A-3). Objects get
   ids that are unique in the whole document; `spread` names the spread an object goes on (0 by
   default).
 - frame.create selects the frame it creates; with \"content\": \"text\" it also puts the caret at the end
@@ -39,8 +40,9 @@ What the ids don't say:
   all the text of the selected frames: text.select {\"story\": N, \"anchor\": 0, \"focus\": 5} selects
   bytes 0–5 of a story. A command whose parameters list `ids` acts on those objects, else on the
   selected ones; selection.set {\"ids\": [...]} selects objects.
-- A string parameter \"$N.key\" is the `key` of the answer of --cmd N (counted from 0): after
-  frame.create answers {\"id\": 8, \"story\": 9}, \"story\": \"$0.story\" passes 9.
+- A string parameter \"$N.key\" is the `key` of the answer of --cmd N (counted from 0), \"$last.key\"
+  the previous command's: after frame.create answers {\"id\": 8, \"story\": 9}, \"story\": \"$0.story\"
+  passes 9. Inside a longer string, \"${N.key}\" is replaced by the value's text.
 
 Every command prints one line, `COMMAND → ANSWER`: the command's own answer as JSON, or what it changed
 in words. If a command fails, run stops there; what came before it ran, including earlier exports.
@@ -84,9 +86,9 @@ magazine with --sample, else a new one. --connect PORT runs them in the DesignCr
 the extension: .pdf, .idml, .epub, else a .png or .jpg of the first page.
 
 A script is one command per line, `COMMAND {PARAMS}`, or a JSON array of {\"command\", \"params\"}
-objects, or one such object per line. Blank lines and lines starting with # are ignored. A string
-parameter \"$N.key\" is the `key` of the answer of step N (counted from 0); \"$last.key\" is the
-previous step's.
+objects, or one such object per line. Blank lines and lines starting with # or // are ignored. A
+string parameter \"$N.key\" is the `key` of the answer of step N (counted from 0), \"$last.key\" the
+previous step's; inside a longer string, \"${N.key}\" is replaced by the value's text.
 
   frame.create {\"rect\": [72, 72, 540, 300], \"content\": \"text\", \"text\": \"Results\"}
   text.select {\"story\": \"$0.story\", \"anchor\": 0, \"focus\": 0}
@@ -101,7 +103,7 @@ or exported; with --keep-going the other steps still run and the failure is that
         usage: "app [--port PORT] COMMAND [PARAMS] | --method METHOD [PARAMS]",
         summary: "run a command in the DesignCraft app started with --control",
         details: "Sends one request to the DesignCraft app started with `designcraft --control PORT` (port 7979 by
-default) and prints its answer as JSON. COMMAND [PARAMS] runs a command, as run --cmd does; --method
+default) and prints its answer: a sentence, or JSON. COMMAND [PARAMS] runs a command, as run --cmd does; --method
 METHOD [PARAMS] calls a control-channel method such as ui.screenshot (docs/control-protocol.md).
 PARAMS is a JSON object.
 
@@ -134,8 +136,8 @@ budgets. --strict fails when a budget is exceeded.",
         name: "validate-pdf",
         usage: "validate-pdf FILE.pdf",
         summary: "check a PDF against PDF/X-4",
-        details: "Runs the built-in PDF/X-4 conformance checks on FILE.pdf and prints the report as JSON: {\"valid\":
-true|false, \"issues\": [...]}. Fails when the file doesn't conform.",
+        details: "Runs the built-in PDF/X-4 conformance checks on FILE.pdf and prints the report as JSON: {\"path\",
+\"standard\": \"PDF/X-4\", \"valid\": true|false, \"issues\": [...]}. Fails when the file doesn't conform.",
     },
     Subcommand {
         name: "links",

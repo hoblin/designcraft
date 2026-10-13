@@ -25,7 +25,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Change All (Object)",
             [],
             None,
-            "{fill?, stroke?: swatch, strokeWeight?, opacity? (0–1), kind?: text|graphic|shape|line|group, layer?, label? (the find.objects criteria), change: {fill?, stroke?, strokeWeight?, opacity?}} → {changed}",
+            "{fill?, stroke?: swatch, strokeWeight?, opacity? (0–1), kind?: text|graphic|shape|line|group, layer?, label? (the find.objects criteria), change: {fill?, stroke?, strokeWeight?, opacity?}} → the objects changed",
             has_doc,
             |s, p| {
                 let ids = find_objects(&s.doc()?.doc, p);

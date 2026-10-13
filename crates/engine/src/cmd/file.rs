@@ -13,7 +13,7 @@ use crate::{DocState, EngineError, Result, Session};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         cmd!(noundo "file.new", "Document…", ["File", "New"], Some("Cmd+N"),
-            "{preset?: \"Letter\"|\"A4\"|…, width?: pt, height?: pt, pages?: count, facingPages?: bool, columns?: count, gutter?: pt, margins?: pt|{top,bottom,inside,outside}, bleed?: pt, title?}",
+            "{preset?: \"Letter\"|\"A4\"|…, width?: pt, height?: pt, pages?: count, facingPages?: bool, columns?: count, gutter?: pt, margins?: pt|{top,bottom,inside,outside}, bleed?: pt, primaryTextFrame?: bool, title?}",
             always, file_new),
         cmd!(noundo "file.newSample", "Sample Document", ["Help"], None, "{} — a multi-page magazine sample", always, file_sample),
         cmd!(query "file.presets", "Document Presets", [], None, "{}", always, |_, _| Ok(serde_json::to_value(PRESETS).unwrap_or_default())),
@@ -102,7 +102,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Place…",
             ["File"],
             Some("Cmd+D"),
-            "{path? | base64?: string, name?, frame?: id (place into), spread?, x?, y?, width?, pdfPage?: n (1-based, Image Import Options), pdfCrop?: crop|trim|bleed|art|media, layoutPage?: n (IDML / .designcraft: that page's objects as a group)} — places an image (into the selected empty frame if any); text files (.txt, .docx, .rtf, .md) and Excel workbooks (.xlsx, as a table) go into the insertion point, the selected frame or a new frame on `page`/`rect` — {autoflow?: adds pages with threaded frames until the text fits, removeStyles?, styleMap?: {imported name: document style}, styleConflicts?: useExisting|redefine|autoRename}",
+            "{path? | base64?: string, name?, frame?: id (place into), spread?, x?, y?, width?, pdfPage?: n (1-based, Image Import Options), pdfCrop?: crop|trim|bleed|art|media, layoutPage?: n (IDML / .designcraft: that page's objects as a group), height?: pt (video or sound: the frame's height), page?: index (text: the page of the new frame), rect?: [x0,y0,x1,y1] (text: the new frame), autoflow?: bool (text: adds pages with threaded frames until it fits), removeStyles?: bool, styleMap?: {imported name: document style}, styleConflicts?: useExisting|redefine|autoRename} — places an image into the selected empty frame if any, else a new frame; text files (.txt, .docx, .rtf, .md) and Excel workbooks (.xlsx, as a table) go into the insertion point, the selected frame or a new frame on `page`/`rect`",
             has_doc,
             file_place
         ),

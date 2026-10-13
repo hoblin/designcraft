@@ -73,7 +73,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Media Options",
             [],
             None,
-            "{ids?, playOnPageLoad?, loop?, controls?, poster?: {path | base64+name} | null (placeholder)} — for placed video and sound",
+            "{ids?, playOnPageLoad?, loop?, controls?, poster?: {path?, base64?, name?}|null (null: the placeholder)} — for placed video and sound",
             has_selection,
             |s, p| {
                 let ids = targets(s, p)?;

@@ -130,7 +130,7 @@ fn unknown_subcommand(name: &str) -> ExitCode {
 /// `json` shortened for an error message.
 fn shown(json: &str) -> String {
     match json.char_indices().nth(200) {
-        Some((i, _)) => format!("{}…", &json[..i]),
+        Some((i, _)) => format!("{}…", json.get(..i).unwrap_or_default()),
         None => json.to_string(),
     }
 }
@@ -152,7 +152,7 @@ fn report(r: Result<(), String>) -> ExitCode {
 }
 
 fn validate_pdf(path: Option<&str>) -> Result<(), String> {
-    let path = path.ok_or("usage: designcraft-cli validate-pdf FILE.pdf")?;
+    let path = path.ok_or("validate-pdf takes the PDF to check: designcraft-cli validate-pdf FILE.pdf")?;
     let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
     let issues = designcraft_pdf::check_pdfx4(&bytes);
     let valid = issues.is_empty();
@@ -284,9 +284,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 val()?;
                 let n = results.len();
                 let Some((id, p)) = steps.get(n) else { break };
-                let p = designcraft_engine::script::resolve(p, &results).map_err(|e| format!("{}: {e}", at(n)))?;
-                let r = s.call(id, &p).map_err(|e| {
-                    let e = e.to_string();
+                let stopped = |e: String| {
                     let unwritten: Vec<String> = args
                         .get(i + 2..)
                         .unwrap_or_default()
@@ -295,7 +293,9 @@ fn run(args: &[String]) -> Result<(), String> {
                         .map(|w| format!(" {} was not written.", w[1]))
                         .collect();
                     format!("{}: {}. Nothing after it ran.{}", at(n), e.trim_end_matches('.'), unwritten.concat())
-                })?;
+                };
+                let p = designcraft_engine::script::resolve(p, &results).map_err(stopped)?;
+                let r = s.call(id, &p).map_err(|e| stopped(e.to_string()))?;
                 match &r {
                     Value::String(said) => outln!("{id} → {said}"),
                     r => outln!("{id} → {}", serde_json::to_string(r).unwrap_or_default()),
@@ -560,6 +560,9 @@ fn app(args: &[String]) -> Result<(), String> {
             r.call("engine.execute", json!({"command": cmd, "params": p}))?
         }
     };
-    outln!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+    match out {
+        Value::String(said) => outln!("{said}"),
+        out => outln!("{}", serde_json::to_string_pretty(&out).unwrap_or_default()),
+    }
     Ok(())
 }

@@ -17,8 +17,8 @@ designcraft-cli commands footnote        # every command whose id/label/menu men
 designcraft-cli describe xref.insert     # one command: its parameters spelled out, what it acts on, what it answers
 ```
 
-Parameters are documented on each command (`params`), e.g. `{anchor? | paragraph?: text to find (first paragraph
-containing it) | story?, para?: 0-based paragraph of `story`, format?: name}`: `?` marks an optional parameter, a
+Parameters are documented on each command (`params`), e.g. ``{anchor? | paragraph?: text to find (first paragraph
+containing it) | story?, para?: 0-based paragraph of `story`, format?: name}``: `?` marks an optional parameter, a
 spaced ` | ` separates alternatives, `…` stands for more, `→` shows the answer and ` — ` starts a remark. The doc is
 the contract: the CLI, MCP and the control channel refuse a parameter the command doesn't take, naming the ones it
 does. A command with no answer of its own answers with what it changed (`changed text frame 8 on page 1`,

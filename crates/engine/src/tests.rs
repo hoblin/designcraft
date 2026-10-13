@@ -575,6 +575,14 @@ fn every_params_doc_names_its_keys() {
     let bad: Vec<String> =
         command_specs().iter().filter_map(|c| cmd::param_keys(c.params).err().map(|e| format!("{}: {e}\n    {}", c.id, c.params))).collect();
     assert!(bad.is_empty(), "{} docs don't parse:\n{}", bad.len(), bad.join("\n"));
+    let value_words = ["null", "bool", "string"];
+    let phantom: Vec<String> = command_specs()
+        .iter()
+        .flat_map(|c| {
+            cmd::param_keys(c.params).unwrap_or_default().into_iter().filter(|k| value_words.contains(k)).map(move |k| format!("{}: `{k}`", c.id))
+        })
+        .collect();
+    assert!(phantom.is_empty(), "a value read as a key (a spaced ` | ` between values?):\n{}", phantom.join("\n"));
     assert_eq!(cmd::param_keys("{index} | {id}").unwrap(), ["index", "id"]);
     assert_eq!(cmd::param_keys("{path? | base64?: string, kind?: a|b (x, y), ids?} → {id}").unwrap(), ["path", "base64", "kind", "ids"]);
     assert_eq!(cmd::param_keys("{} — a remark").unwrap(), Vec::<&str>::new());
@@ -610,6 +618,39 @@ fn a_call_refuses_parameters_the_command_does_not_take() {
 }
 
 #[test]
+fn an_open_object_takes_any_key_but_a_closed_alternative_is_checked_whole() {
+    let mut s = session();
+    let r = s.call("frame.create", &json!({"rect": [36, 36, 300, 200], "content": "text", "text": "Hi"})).unwrap();
+    s.call("text.select", &json!({"story": r["story"], "anchor": 0, "focus": 2})).unwrap();
+    assert_eq!(said(&mut s, "type.char", json!({"size": 24, "tracking": 10})), format!("changed story {}", r["story"]));
+    assert!(
+        said(&mut s, "type.char", json!({"attrs": {"size": 24}, "bogus": true}))
+            .starts_with("`type.char` was given `bogus`, which it doesn't take. `type.char` takes {attrs: ")
+    );
+    assert!(
+        said(&mut s, "type.para", json!({"attrs": {"align": "center"}, "align": "left"}))
+            .starts_with("`type.para` was given `align`, which it doesn't take.")
+    );
+    assert!(
+        said(&mut s, "type.char", json!({"siz": 24})).starts_with("invalid parameters for `type.char`: "),
+        "the command checks the attribute names itself"
+    );
+}
+
+#[test]
+fn pages_and_parents_are_described() {
+    let mut s = session();
+    assert_eq!(said(&mut s, "layout.pages.delete", json!({"pages": [0]})), "deleted page 1 (as numbered before)");
+    assert_eq!(said(&mut s, "layout.pages.applyParent", json!({"pages": [0], "parent": null})), "changed the parent applied to page 1");
+    let id = s.call("frame.create", &json!({"rect": [36, 36, 300, 200]})).unwrap()["id"].clone();
+    assert_eq!(
+        said(&mut s, "object.lock", json!({})),
+        format!("changed frame {id} on page 1; nothing is selected"),
+        "a bare changed count is described"
+    );
+}
+
+#[test]
 fn an_unknown_command_names_the_commands_like_it() {
     let mut s = session();
     assert_eq!(said(&mut s, "frame.crate", json!({})), "unknown command `frame.crate`; commands named like it: frame.create");
@@ -632,7 +673,7 @@ fn a_call_that_returns_nothing_says_what_changed() {
     assert_eq!(said(&mut s, "edit.deselectAll", json!({})), "nothing is selected");
     assert_eq!(said(&mut s, "edit.deselectAll", json!({})), "nothing changed");
     assert_eq!(said(&mut s, "text.select", json!({"story": story, "anchor": 0, "focus": 2})), format!("selected bytes 0–2 of story {story}, “Hi”"));
-    assert_eq!(said(&mut s, "type.char", json!({"size": 24})), format!("changed the text of story {story}"));
+    assert_eq!(said(&mut s, "type.char", json!({"size": 24})), format!("changed story {story}"));
     assert_eq!(said(&mut s, "text.select", json!({"story": story, "anchor": 1, "focus": 1})), format!("the caret is in story {story} at byte 1"));
 }
 
@@ -696,12 +737,12 @@ fn a_font_that_is_not_installed_is_named_in_the_answer() {
     let story = r["story"].clone();
     s.call("text.select", &json!({"story": story, "anchor": 0, "focus": 2})).unwrap();
     let answer = said(&mut s, "type.char", json!({"attrs": {"fontFamily": "No Such Family"}}));
-    assert_eq!(
-        answer,
-        format!("changed the text of story {story}; no font family No Such Family is installed, so its text renders in the fallback font")
-    );
-    assert_eq!(said(&mut s, "type.char", json!({"attrs": {"size": 20}})), format!("changed the text of story {story}"), "said once");
+    assert_eq!(answer, format!("changed story {story}; no font family No Such Family is installed, so its text renders in the fallback font"));
+    assert_eq!(said(&mut s, "type.char", json!({"attrs": {"size": 20}})), format!("changed story {story}"), "said once");
     let installed = designcraft_fonts::FontDb::global().families().into_iter().next().unwrap();
+    let typo = format!("{installed} Nope");
+    let answer = said(&mut s, "type.char", json!({"attrs": {"fontFamily": typo}}));
+    assert!(answer.contains(&format!("installed families named like it: {installed} (styles ")), "{answer}");
     let answer = said(&mut s, "type.char", json!({"attrs": {"fontFamily": installed, "fontStyle": "Wobbly"}}));
     assert!(answer.contains(&format!("font family {installed} has no Wobbly style; it has ")), "{answer}");
 }

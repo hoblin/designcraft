@@ -600,11 +600,12 @@ impl DesignApp {
         self.ui.status = s.into();
     }
 
-    /// THE entry point for every action (menus, shortcuts, palette, panels, control channel).
+    /// The entry point for the app's own actions (menus, shortcuts, palette, panels).
     pub fn run(&mut self, id: &str, params: Value) -> Result<Value, String> {
         self.dispatch(id, params, Session::execute)
     }
 
+    /// The entry point for the control channel: [`Session::call`], answered in words.
     pub fn call(&mut self, id: &str, params: Value) -> Result<Value, String> {
         self.dispatch(id, params, Session::call)
     }

@@ -41,7 +41,8 @@ pub fn specs() -> Vec<CommandSpec> {
         }),
         cmd!(query "guide.list", "Guides", [], None, "{spread?} → [{page, index, orientation, position, spread}]", has_doc, |s, p| {
             let d = &s.doc()?.doc;
-            let sp = d.spread(guide_spread(p, "guide.list")?).ok_or_else(|| bad("guide.list", no_spread(d, guide_spread(p, "guide.list").unwrap_or(designcraft_doc::SpreadRef::Doc(0)))))?;
+            let r = guide_spread(p, "guide.list")?;
+            let sp = d.spread(r).ok_or_else(|| bad("guide.list", no_spread(d, r)))?;
             let mut out = Vec::new();
             for (pi, pg) in sp.pages.iter().enumerate() {
                 for (i, g) in pg.guides.iter().enumerate() {
@@ -171,7 +172,8 @@ fn delete(s: &mut Session, p: &Value) -> Result<Value> {
     let (r, pi, i) = guide_ref(p, "guide.delete")?;
     s.edit(|d, _| {
         check_editable(d, r, pi, i, "guide.delete")?;
-        let pg = d.spread_mut(r).and_then(|sp| sp.pages.get_mut(pi)).ok_or_else(|| bad("guide.delete", format!("no page {pi} on that spread")))?;
+        let n = d.spread(r).map_or(0, |sp| sp.pages.len());
+        let pg = d.spread_mut(r).and_then(|sp| sp.pages.get_mut(pi)).ok_or_else(|| bad("guide.delete", none_at("page of the spread", pi, n)))?;
         if i >= pg.guides.len() {
             return Err(bad("guide.delete", "no such guide"));
         }
