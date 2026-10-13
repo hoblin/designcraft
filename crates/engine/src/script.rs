@@ -73,20 +73,41 @@ fn lookup(r: &str, results: &[Value]) -> Result<Value, String> {
         head.parse::<usize>().map_err(|_| format!("bad reference `${r}`"))?
     };
     let mut v = results.get(idx).ok_or_else(|| format!("`${r}`: step {idx} hasn't run (only {} have)", results.len()))?.clone();
-    for p in parts {
+    for (depth, p) in parts.enumerate() {
         v = match (&v, p.parse::<usize>()) {
             (Value::Array(a), Ok(i)) => a.get(i).cloned(),
             (Value::Object(o), _) => o.get(p).cloned(),
             _ => None,
         }
-        .ok_or_else(|| format!("`${r}`: no `{p}` in {}", short(&v)))?;
+        .ok_or_else(|| if depth == 0 { no_key(r, p, idx, &v, results) } else { format!("`${r}`: no `{p}` in {}", short(&v)) })?;
     }
     Ok(v)
 }
 
+/// Why `$r` found no `key` in the answer of step `idx`, and which earlier answers have one.
+fn no_key(r: &str, key: &str, idx: usize, v: &Value, results: &[Value]) -> String {
+    let with: Vec<String> = results.iter().enumerate().filter(|(_, a)| a.get(key).is_some()).map(|(i, _)| i.to_string()).collect();
+    let refs = with.iter().map(|i| format!("`${i}.{key}`")).collect::<Vec<_>>().join(", ");
+    let elsewhere = match with.as_slice() {
+        [] => format!("no step so far answered with `{key}`"),
+        [one] => format!("step {one} answered with `{key}`: {refs}"),
+        many => format!("steps {} answered with `{key}`: {refs}", many.join(", ")),
+    };
+    match v {
+        Value::String(said) => {
+            format!("`${r}`: step {idx} (counted from 0) answered in words, “{}”, not with keys, so it has no `{key}`; {elsewhere}", clip(said))
+        }
+        Value::Object(_) => format!("`${r}`: the answer of step {idx} (counted from 0), {}, has no `{key}`; {elsewhere}", short(v)),
+        _ => format!("`${r}`: no `{key}` in {}; {elsewhere}", short(v)),
+    }
+}
+
+fn clip(s: &str) -> String {
+    s.get(..s.floor_char_boundary(120)).filter(|_| s.len() > 120).map_or_else(|| s.to_string(), |head| format!("{head}…"))
+}
+
 fn short(v: &Value) -> String {
-    let s = v.to_string();
-    if s.len() > 120 { format!("{}…", &s[..s.floor_char_boundary(120)]) } else { s }
+    clip(&v.to_string())
 }
 
 /// Replace references in `params` with values from earlier `results`.
@@ -181,7 +202,32 @@ mod tests {
         let r = resolve(&p, &results).unwrap();
         assert_eq!(r, json!({"story": 9, "id": 5, "label": "Frame 8 of A", "keep": "$", "list": ["A"]}));
         assert!(resolve(&json!({"x": "$5.id"}), &results).unwrap_err().contains("hasn't run"));
-        assert!(resolve(&json!({"x": "$0.nope"}), &results).unwrap_err().contains("no `nope`"));
+        assert_eq!(
+            resolve(&json!({"x": "$0.nope"}), &results).unwrap_err(),
+            "`$0.nope`: the answer of step 0 (counted from 0), {\"id\":8,\"ids\":[4,5],\"story\":9}, has no `nope`; no step so far answered with `nope`"
+        );
+        assert!(resolve(&json!({"x": "$0.ids.7"}), &results).unwrap_err().contains("no `7` in [4,5]"));
+    }
+
+    #[test]
+    fn a_reference_into_a_worded_answer_says_where_the_key_is() {
+        let results = vec![json!({"id": 8, "story": 9}), json!("changed frame 8 on page 1"), json!({"id": 10})];
+        assert_eq!(
+            resolve(&json!({"ids": ["$1.id"]}), &results[..2]).unwrap_err(),
+            "`$1.id`: step 1 (counted from 0) answered in words, “changed frame 8 on page 1”, not with keys, so it has no `id`; step 0 answered with `id`: `$0.id`"
+        );
+        assert!(
+            resolve(&json!({"ids": ["$last.id"]}), &results[..2]).unwrap_err().starts_with("`$last.id`: step 1 (counted from 0) answered in words")
+        );
+        assert!(resolve(&json!("${1.id}"), &results[..2]).unwrap_err().contains("answered in words"));
+        let said = resolve(&json!("$1.story"), &results).unwrap_err();
+        assert!(said.ends_with("so it has no `story`; step 0 answered with `story`: `$0.story`"), "{said}");
+        let said = resolve(&json!("$1.id"), &results).unwrap_err();
+        assert!(said.ends_with("steps 0, 2 answered with `id`: `$0.id`, `$2.id`"), "{said}");
+        let said = resolve(&json!("$1.frame"), &results).unwrap_err();
+        assert!(said.ends_with("no step so far answered with `frame`"), "{said}");
+        let said = resolve(&json!("$0.id"), &[json!([4, 5])]).unwrap_err();
+        assert_eq!(said, "`$0.id`: no `id` in [4,5]; no step so far answered with `id`");
     }
 
     #[test]

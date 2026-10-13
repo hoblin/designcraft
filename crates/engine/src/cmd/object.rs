@@ -32,11 +32,19 @@ pub fn specs() -> Vec<CommandSpec> {
             "Create Frame",
             [],
             None,
-            "{spread?, rect: [x0,y0,x1,y1] (spread coords), shape?: rectangle|ellipse|polygon, content?: graphic|text|unassigned, sides?: 3–100 (polygon; default 6), starInset?: 0–100 (% for a star polygon), text?: string, caret?: bool, vertical?: bool (text: a new vertical story)}",
+            "{spread?, rect: [x0,y0,x1,y1] (spread coords), shape?: rectangle|ellipse|polygon, content?: graphic|text|unassigned, sides?: 3–100 (polygon; default 6), starInset?: 0–100 (% for a star polygon), text?: string, caret?: bool, vertical?: bool (text: a new vertical story)} → {id, story (text), stroke (unassigned: the 1 pt [Black] default it got)}",
             has_doc,
             frame_create
         ),
-        cmd!("line.create", "Create Line", [], None, "{spread?, a: [x,y], b: [x,y]}", has_doc, line_create),
+        cmd!(
+            "line.create",
+            "Create Line",
+            [],
+            None,
+            "{spread?, a: [x,y], b: [x,y]} → {id, stroke (the 1 pt [Black] default it got)}",
+            has_doc,
+            line_create
+        ),
         cmd!(
             "transform.move",
             "Move",
@@ -594,7 +602,15 @@ pub fn specs() -> Vec<CommandSpec> {
             has_selection,
             step_and_repeat
         ),
-        cmd!("path.create", "Create Path", [], None, "{spread?, anchors: [{p:[x,y], in?:[x,y], out?:[x,y]}], closed?: bool}", has_doc, path_create),
+        cmd!(
+            "path.create",
+            "Create Path",
+            [],
+            None,
+            "{spread?, anchors: [{p:[x,y], in?:[x,y], out?:[x,y]}], closed?: bool} → {id, stroke (the 1 pt [Black] default it got)}",
+            has_doc,
+            path_create
+        ),
         cmd!("path.appendAnchor", "Add Anchor", [], None, "{id, anchor: {p, in?, out?}} (spread coords)", has_doc, path_append),
         cmd!("path.close", "Close Path", ["Object", "Paths"], None, "{id}", has_doc, path_close),
         cmd!("path.moveAnchors", "Move Anchors", [], None, "{id, anchors: [[subpath, index]], dx, dy, handle?: in|out}", has_doc, path_move_anchors),
@@ -861,15 +877,16 @@ fn frame_create(s: &mut Session, p: &Value) -> Result<Value> {
         }
         let id = ItemId(d.alloc());
         let mut it = Item::new(id, lid, sh, path);
+        let mut answer = json!({"id": id.0});
         if content == "graphic" {
             it.object_style = d.styles.default_graphic_frame.clone();
         } else {
-            // Shapes drawn with Rectangle/Ellipse/Polygon get the default 1 pt black stroke.
             it.stroke = Stroke::default();
+            answer["stroke"] = crate::describe::default_stroke("an unassigned frame (a graphic frame gets none)").into();
         }
         d.insert_item(sr, it, None)?;
         *sel = Selection::items(vec![id]);
-        Ok(json!({"id": id.0}))
+        Ok(answer)
     })
 }
 
@@ -899,7 +916,7 @@ fn line_create(s: &mut Session, p: &Value) -> Result<Value> {
         it.stroke = Stroke::default();
         d.insert_item(sr, it, None)?;
         *sel = Selection::items(vec![id]);
-        Ok(json!({"id": id.0}))
+        Ok(json!({"id": id.0, "stroke": crate::describe::default_stroke("a line")}))
     })
 }
 
@@ -1928,7 +1945,7 @@ fn path_create(s: &mut Session, p: &Value) -> Result<Value> {
         it.stroke = Stroke::default();
         d.insert_item(sr, it, None)?;
         *sel = Selection::items(vec![id]);
-        Ok(json!({"id": id.0}))
+        Ok(json!({"id": id.0, "stroke": crate::describe::default_stroke("a path")}))
     })
 }
 

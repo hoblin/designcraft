@@ -341,13 +341,18 @@ pub fn handle(app: &mut DesignApp, ctx: &egui::Context, req: &ControlRequest) ->
                 return err("no such page");
             };
             let png = img.to_png();
-            match s("path") {
+            let mut r = match s("path") {
                 Some(path) => match app.services.write.as_mut() {
-                    Some(w) => wrap(w(path, &png).map(|_| json!({"path": path, "width": img.width, "height": img.height}))),
-                    None => err("no writer"),
+                    Some(w) => match w(path, &png) {
+                        Ok(()) => json!({"path": path, "width": img.width, "height": img.height}),
+                        Err(e) => return err(e),
+                    },
+                    None => return err("no writer"),
                 },
-                None => ok(json!({"width": img.width, "height": img.height, "pngBase64": designcraft_engine::cmd::base64_encode(&png)})),
-            }
+                None => json!({"width": img.width, "height": img.height, "pngBase64": designcraft_engine::cmd::base64_encode(&png)}),
+            };
+            app.session.warn_overset(&mut r);
+            ok(r)
         }
         "app.open" => wrap(app.run("file.open", json!({"path": s("path")}))),
         "app.save" => wrap(app.run("file.save", json!({"path": s("path")}))),
@@ -497,5 +502,21 @@ mod automation_contract_tests {
         }
         assert!(app.run("app.exportPng", json!({"page":Value::Null,"path":"unchanged.png"})).is_err());
         assert!(writes.lock().unwrap().is_empty());
+    }
+    #[test]
+    fn control_render_and_export_name_the_frame_whose_text_does_not_fit() {
+        let mut app = app();
+        let ctx = egui::Context::default();
+        app.services.write = Some(Box::new(|_, _| Ok(())));
+        for method in ["ui.render", "app.export"] {
+            assert!(call(&mut app, &ctx, method, json!({"path":"fits.png","scale":0.1}))["result"].get("warnings").is_none(), "{method}");
+        }
+        let tiny = app.session.execute("frame.create", &json!({"rect":[36,36,100,56],"content":"text","text":"This will not fit"})).unwrap();
+        let expected = format!("text frame {} on page 1 doesn't fit its text: the last ", tiny["id"]);
+        for method in ["ui.render", "app.export"] {
+            let r = call(&mut app, &ctx, method, json!({"path":"overset.png","scale":0.1}));
+            let warning = r["result"]["warnings"][0].as_str().unwrap_or_default();
+            assert!(warning.starts_with(&expected), "{method}: {r}");
+        }
     }
 }

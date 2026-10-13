@@ -183,6 +183,38 @@ fn document(old: &Document, new: &Document) -> Vec<String> {
     said
 }
 
+/// Every story whose text doesn't fit its frames, as a sentence naming the frame the text runs
+/// out of, what isn't shown, and what to do about it.
+pub(crate) fn overset(doc: &Document, cache: &designcraft_compose::Cache) -> Vec<String> {
+    doc.stories
+        .values()
+        .filter_map(|story| {
+            let cs = cache.get(doc, story.id, None);
+            let at = cs.overset_at?.min(story.len());
+            let last = story.frames.last().and_then(|f| doc.item(*f))?;
+            let frame = object(doc, last);
+            let frame = if story.frames.len() > 1 { format!("the thread ending in {frame}") } else { frame };
+            let shown = |text: &str| {
+                let head: String = text.chars().take(40).collect();
+                if head.len() < text.len() { format!("{head}…") } else { head }
+            };
+            let total = story.text.chars().count();
+            let hidden = story.text.get(at..).unwrap_or_default();
+            let what = if at == 0 {
+                format!("none of “{}” is shown", shown(hidden).replace('\n', "¶"))
+            } else {
+                format!("the last {} of its {total} characters, from “{}”, are not shown", hidden.chars().count(), shown(hidden).replace('\n', "¶"))
+            };
+            Some(format!("{frame} doesn't fit its text: {what}; enlarge the frame or make the type smaller"))
+        })
+        .collect()
+}
+
+/// The note a create command answers with when it gives its object the default stroke.
+pub(crate) fn default_stroke(what: &str) -> String {
+    format!("1 pt [Black], the default for {what}; object.stroke {{\"swatch\":\"[None]\"}} removes it")
+}
+
 fn selection(old: &Selection, new: &Selection, doc: &Document) -> Vec<String> {
     let mut said = vec![];
     if old.items != new.items {

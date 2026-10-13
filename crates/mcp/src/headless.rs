@@ -199,13 +199,15 @@ impl Headless {
             .render_page(&st.doc, &self.session.cache, page, scale, bleed, &RenderOptions { printing_only: true, ..Default::default() })
             .ok_or_else(|| format!("no page {page} (the document has {} pages, indices are 0-based)", st.doc.page_count()))?;
         let png = img.to_png();
-        match s(p, "path") {
+        let mut r = match s(p, "path") {
             Some(path) => {
                 designcraft_engine::atomic::write_atomic(std::path::Path::new(path), &png).map_err(|e| format!("write {path}: {e}"))?;
-                Ok(json!({"path": path, "width": img.width, "height": img.height}))
+                json!({"path": path, "width": img.width, "height": img.height})
             }
-            None => Ok(json!({"width": img.width, "height": img.height, "pngBase64": designcraft_engine::cmd::base64_encode(&png)})),
-        }
+            None => json!({"width": img.width, "height": img.height, "pngBase64": designcraft_engine::cmd::base64_encode(&png)}),
+        };
+        self.session.warn_overset(&mut r);
+        Ok(r)
     }
 
     /// `app.export {path, page?, scale?}`: PNG (or JPEG by extension) of one page, like the
@@ -222,7 +224,9 @@ impl Headless {
         let lower = path.to_ascii_lowercase();
         let bytes = if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { img.to_jpeg(90) } else { img.to_png() };
         designcraft_engine::atomic::write_atomic(std::path::Path::new(path), &bytes).map_err(|e| format!("write {path}: {e}"))?;
-        Ok(json!({"path": path, "width": img.width, "height": img.height}))
+        let mut r = json!({"path": path, "width": img.width, "height": img.height});
+        self.session.warn_overset(&mut r);
+        Ok(r)
     }
 }
 

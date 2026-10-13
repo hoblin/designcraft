@@ -1518,10 +1518,11 @@ fn export_png(app: &mut DesignApp, p: &Value) -> Result<Value, String> {
         }
     };
     let Some(path) = path else { return Ok(Value::Null) };
-    match app.services.write.as_mut() {
-        Some(w) => w(&path, &png).map(|_| json!({"path": path, "width": img.width, "height": img.height})),
-        None => Err("no writer".into()),
-    }
+    let Some(w) = app.services.write.as_mut() else { return Err("no writer".into()) };
+    w(&path, &png)?;
+    let mut r = json!({"path": path, "width": img.width, "height": img.height});
+    app.session.warn_overset(&mut r);
+    Ok(r)
 }
 
 /// File › Export IDML…: ask for a path, export through `file.exportIdml` and write the bytes with

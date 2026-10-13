@@ -36,13 +36,17 @@ What the ids don't say:
   ids that are unique in the whole document; `spread` names the spread an object goes on (0 by
   default).
 - frame.create selects the frame it creates; with \"content\": \"text\" it also puts the caret at the end
-  of its text, so text.insert types there. type.char and type.para act on the selected text, else on
+  of its text, so text.insert types there. An unassigned frame, a line and a path get a 1 pt [Black]
+  stroke, as drawn shapes do; the answer says so, and object.stroke {\"swatch\": \"[None]\"} removes
+  it. type.char and type.para act on the selected text, else on
   all the text of the selected frames: text.select {\"story\": N, \"anchor\": 0, \"focus\": 5} selects
   bytes 0–5 of a story. A command whose parameters list `ids` acts on those objects, else on the
   selected ones; selection.set {\"ids\": [...]} selects objects.
 - A string parameter \"$N.key\" is the `key` of the answer of --cmd N (counted from 0), \"$last.key\"
   the previous command's: after frame.create answers {\"id\": 8, \"story\": 9}, \"story\": \"$0.story\"
-  passes 9. Inside a longer string, \"${N.key}\" is replaced by the value's text.
+  passes 9. Inside a longer string, \"${N.key}\" is replaced by the value's text. An answer in words
+  has no keys, so after object.fill, \"$last.id\" fails; the error names the steps that answered
+  with an id.
 
 Every command prints one line, `COMMAND → ANSWER`: the command's own answer as JSON, or what it changed
 in words. If a command fails, run stops there; what came before it ran, including earlier exports.
@@ -51,7 +55,9 @@ in words. If a command fails, run stops there; what came before it ran, includin
 .designcraft (a save). --page N (counted from 0, 0 by default), --scale S (pixels per point, 1 by
 default) and --pdf-options JSON (the parameters of file.exportPdf) apply to the exports after them.
 --all-pages DIR writes page-001.png, page-002.png… into DIR. Each export prints one line on stderr,
-e.g. `wrote sale.png (612×792, 32.6 ms, 11 glyphs)`.",
+e.g. `wrote sale.png (612×792, 32.6 ms, 11 glyphs)`, then a `warning:` line for each text frame in the
+document whose text doesn't fit it (`text frame 8 on page 1 doesn't fit its text: none of “32” is
+shown`).",
     },
     Subcommand {
         name: "commands",

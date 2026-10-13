@@ -23,13 +23,21 @@ spaced ` | ` separates alternatives, `…` stands for more, `→` shows the answ
 the contract: the CLI, MCP and the control channel refuse a parameter the command doesn't take, naming the ones it
 does. A command with no answer of its own answers with what it changed (`changed text frame 8 on page 1`,
 `selected frame 8 on page 1`, `nothing changed`), and an error says what was read, what is wrong and the form that
-works.
+works. What a command did unasked is in its answer too: `frame.create` with `"content": "unassigned"`, `line.create`
+and `path.create` answer `{"id": 8, "stroke": "1 pt [Black], the default for a line; object.stroke {\"swatch\":\"[None]\"}
+removes it"}`. An export (`run --export`, `script --export`, `file.exportPdf`'s `warnings`, MCP's `export_png` and
+`render_page`, the control channel's `app.export` and `ui.render`) names every text frame in the document whose text
+doesn't fit it: `text frame 8 on page 1 doesn't fit its text: none of “32” is shown; enlarge the frame or make the
+type smaller`.
 
 ## Scripts: several commands, later ones using earlier results
 
 A script is one command per line (`command.id {json params}`; `#` comments), JSON lines, or a JSON array of
 `{command, params}`. A parameter string `"$N.path"` becomes that value of step N's result (0-based, `$last` for the
-previous step); `"${N.path}"` interpolates inside longer strings.
+previous step); `"${N.path}"` interpolates inside longer strings. A result in words has no keys, so `"$last.id"`
+after `object.fill` fails, and the error says which steps answered with an `id`: `` `$last.id`: step 1 (counted from
+0) answered in words, “changed frame 8 on page 1”, not with keys, so it has no `id`; step 0 answered with `id`:
+`$0.id` ``.
 
 ```sh
 cat > page.dcs <<'DCS'

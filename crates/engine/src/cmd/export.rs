@@ -148,23 +148,27 @@ fn export_epub(s: &mut Session, p: &Value) -> Result<Value> {
             pages.push(designcraft_epub::FixedPage { png: img.to_png(), width: b.width(), height: b.height(), text: page_text(d, &s.cache, i) });
         }
         let bytes = designcraft_epub::export_fixed_epub(d, &pages, &opts).map_err(|e| crate::EngineError::Other(e.to_string()))?;
-        return match p.get("path").and_then(Value::as_str) {
+        let mut r = match p.get("path").and_then(Value::as_str) {
             Some(path) => {
                 write_file(path, &bytes)?;
-                Ok(serde_json::json!({"path": path, "bytes": bytes.len(), "pages": pages.len()}))
+                serde_json::json!({"path": path, "bytes": bytes.len(), "pages": pages.len()})
             }
-            None => Ok(serde_json::json!({"base64": super::base64_encode(&bytes), "bytes": bytes.len(), "pages": pages.len()})),
+            None => serde_json::json!({"base64": super::base64_encode(&bytes), "bytes": bytes.len(), "pages": pages.len()}),
         };
+        s.warn_overset(&mut r);
+        return Ok(r);
     }
     let bytes = designcraft_epub::export_epub(epub_doc, &opts).map_err(|e| crate::EngineError::Other(e.to_string()))?;
-    match p.get("path").and_then(Value::as_str) {
+    let mut r = match p.get("path").and_then(Value::as_str) {
         Some(path) => {
             #[cfg(not(target_arch = "wasm32"))]
             crate::atomic::write_file(path, &bytes)?;
-            Ok(serde_json::json!({"path": path, "bytes": bytes.len()}))
+            serde_json::json!({"path": path, "bytes": bytes.len()})
         }
-        None => Ok(serde_json::json!({"base64": super::file::base64_encode(&bytes), "bytes": bytes.len()})),
-    }
+        None => serde_json::json!({"base64": super::file::base64_encode(&bytes), "bytes": bytes.len()}),
+    };
+    s.warn_overset(&mut r);
+    Ok(r)
 }
 
 pub(crate) fn options(p: &Value, page_count: usize) -> Result<PdfOptions> {
@@ -587,6 +591,7 @@ fn export_pdf(s: &mut Session, p: &Value) -> Result<Value> {
     {
         r.warnings.push(format!("transparency flattened: {n} region(s) rasterised"));
     }
+    r.warnings.extend(s.overset());
     match str_param(p, "path") {
         Some(path) => {
             write_file(path, &r.bytes)?;

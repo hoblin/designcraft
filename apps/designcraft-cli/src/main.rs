@@ -324,16 +324,18 @@ fn run(args: &[String]) -> Result<(), String> {
                 if out.ends_with(".epub") {
                     let r = s.execute("file.exportEpub", &json!({"path": out})).map_err(|e| e.to_string())?;
                     eprintln!("wrote {out} ({} bytes)", r["bytes"]);
+                    print_warnings(&r);
                 } else if out.ends_with(".pdf") {
                     let mut p = pdf_opts.clone();
                     p["path"] = json!(out);
                     let r = s.execute("file.exportPdf", &p).map_err(|e| e.to_string())?;
                     eprintln!("wrote {out} ({} pages, {} bytes)", r["pages"], r["bytes"]);
-                    for w in r["warnings"].as_array().into_iter().flatten() {
-                        eprintln!("warning: {}", w.as_str().unwrap_or_default());
-                    }
+                    print_warnings(&r);
+                } else if out.to_ascii_lowercase().ends_with(".idml") {
+                    export(&mut s, &out, page, scale)?;
                 } else {
                     export(&mut s, &out, page, scale)?;
+                    warn_overset(&s);
                 }
             }
             "--all-pages" => {
@@ -343,6 +345,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 for p in 0..n {
                     export(&mut s, &format!("{dir}/page-{:03}.png", p + 1), p, scale)?;
                 }
+                warn_overset(&s);
             }
             other => return Err(format!("run was given `{other}`, which it doesn't take. {RUN_TAKES}")),
         }
@@ -350,10 +353,23 @@ fn run(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn warn_overset(s: &Session) {
+    for w in s.overset() {
+        eprintln!("warning: {w}");
+    }
+}
+
+fn print_warnings(answer: &Value) {
+    for w in answer["warnings"].as_array().into_iter().flatten() {
+        eprintln!("warning: {}", w.as_str().unwrap_or_default());
+    }
+}
+
 fn export(s: &mut Session, out: &str, page: usize, scale: f64) -> Result<(), String> {
     if out.to_ascii_lowercase().ends_with(".idml") {
         let r = s.execute("file.exportIdml", &json!({"path": out})).map_err(|e| e.to_string())?;
         eprintln!("wrote {out} ({} bytes)", r["bytes"]);
+        print_warnings(&r);
         return Ok(());
     }
     if out.ends_with(".designcraft") {
@@ -510,16 +526,17 @@ fn script(args: &[String]) -> Result<(), String> {
         for out in &export {
             let lower = out.to_lowercase();
             let p = json!({"path": out});
-            if lower.ends_with(".pdf") {
-                exec(b, "file.exportPdf", p)?;
+            let r = if lower.ends_with(".pdf") {
+                exec(b, "file.exportPdf", p)?
             } else if lower.ends_with(".idml") {
-                exec(b, "file.exportIdml", p)?;
+                exec(b, "file.exportIdml", p)?
             } else if lower.ends_with(".epub") {
-                exec(b, "file.exportEpub", p)?;
+                exec(b, "file.exportEpub", p)?
             } else {
                 // PNG / JPEG of the first page.
-                b.call("app.export", p)?;
-            }
+                b.call("app.export", p)?
+            };
+            print_warnings(&r);
         }
     }
     outln!("{}", serde_json::to_string_pretty(&report.to_json()).unwrap_or_default());
