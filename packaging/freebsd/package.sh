@@ -11,7 +11,8 @@
 # Usage: packaging/freebsd/package.sh [--skip-build] [--dry-run]
 #   --dry-run   stage the tree from stub binaries and list it, without building (works on any OS)
 #
-# Needs: bash, cargo, and the packages installed in .github/workflows/freebsd.yml.
+# Needs: bash, cargo, pkgconf, cmake, python3, libxkbcommon, wayland, libX11, libXcursor, libXrandr,
+# libXi, libxcb, mesa-libs, vulkan-loader, gtk3, fontconfig, freetype2 and alsa-lib.
 set -euo pipefail
 # shellcheck source=../env.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
