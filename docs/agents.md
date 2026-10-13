@@ -24,10 +24,11 @@ the contract: the CLI, MCP and the control channel refuse a parameter the comman
 does. A command with no answer of its own answers with what it changed (`changed text frame 8 on page 1`,
 `selected frame 8 on page 1`, `nothing changed`), and an error says what was read, what is wrong and the form that
 works. What a command did unasked is in its answer too: `frame.create` with `"content": "unassigned"`, `line.create`
-and `path.create` answer `{"id": 8, "stroke": "1 pt [Black], the default for a line; object.stroke {"swatch":"[None]"}
-removes it"}`. An export (`run --export`, `file.exportPdf`'s `warnings`, MCP's `export_png` and `render_page`,
-`app.export`) names every text frame whose text doesn't fit and so isn't all drawn: `text frame 8 on page 1 doesn't
-fit its text: none of “32” is shown; enlarge the frame or make the type smaller`.
+and `path.create` answer `{"id": 8, "stroke": "1 pt [Black], the default for a line; object.stroke {\"swatch\":\"[None]\"}
+removes it"}`. An export (`run --export`, `script --export`, `file.exportPdf`'s `warnings`, MCP's `export_png` and
+`render_page`, the control channel's `app.export` and `ui.render`) names every text frame in the document whose text
+doesn't fit it: `text frame 8 on page 1 doesn't fit its text: none of “32” is shown; enlarge the frame or make the
+type smaller`.
 
 ## Scripts: several commands, later ones using earlier results
 

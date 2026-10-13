@@ -206,7 +206,7 @@ impl Headless {
             }
             None => json!({"width": img.width, "height": img.height, "pngBase64": designcraft_engine::cmd::base64_encode(&png)}),
         };
-        with_overset(&mut r, &self.session);
+        self.session.warn_overset(&mut r);
         Ok(r)
     }
 
@@ -225,16 +225,8 @@ impl Headless {
         let bytes = if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { img.to_jpeg(90) } else { img.to_png() };
         designcraft_engine::atomic::write_atomic(std::path::Path::new(path), &bytes).map_err(|e| format!("write {path}: {e}"))?;
         let mut r = json!({"path": path, "width": img.width, "height": img.height});
-        with_overset(&mut r, &self.session);
+        self.session.warn_overset(&mut r);
         Ok(r)
-    }
-}
-
-/// Adds `warnings` to a render or export answer when text of the document doesn't fit its frames.
-fn with_overset(r: &mut Value, session: &designcraft_engine::Session) {
-    let overset = session.overset();
-    if !overset.is_empty() {
-        r["warnings"] = json!(overset);
     }
 }
 

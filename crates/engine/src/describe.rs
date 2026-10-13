@@ -210,8 +210,7 @@ pub(crate) fn overset(doc: &Document, cache: &designcraft_compose::Cache) -> Vec
         .collect()
 }
 
-/// The note a create command answers with when it gives its object the stroke InDesign gives drawn
-/// shapes, which the caller didn't ask for.
+/// The note a create command answers with when it gives its object the default stroke.
 pub(crate) fn default_stroke(what: &str) -> String {
     format!("1 pt [Black], the default for {what}; object.stroke {{\"swatch\":\"[None]\"}} removes it")
 }

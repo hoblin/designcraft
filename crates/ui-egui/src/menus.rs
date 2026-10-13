@@ -1521,10 +1521,7 @@ fn export_png(app: &mut DesignApp, p: &Value) -> Result<Value, String> {
     let Some(w) = app.services.write.as_mut() else { return Err("no writer".into()) };
     w(&path, &png)?;
     let mut r = json!({"path": path, "width": img.width, "height": img.height});
-    let overset = app.session.overset();
-    if !overset.is_empty() {
-        r["warnings"] = json!(overset);
-    }
+    app.session.warn_overset(&mut r);
     Ok(r)
 }
 

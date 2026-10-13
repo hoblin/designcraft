@@ -32,6 +32,36 @@ fn script_from_stdin_with_references_saves_and_exports() {
     assert_eq!(v["completed"], 2);
     assert_eq!(v["results"][1]["text"], "Hi");
     assert!(doc.exists() && png.exists());
+    assert!(!String::from_utf8_lossy(&out.stderr).contains("warning:"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_script_export_warns_about_text_that_does_not_fit() {
+    let dir = std::env::temp_dir().join(format!("dc-cli-script-overset-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (png, pdf) = (dir.join("a.png"), dir.join("a.pdf"));
+    let mut child = cli()
+        .args(["script", "-", "--export", png.to_str().unwrap(), "--export", pdf.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"frame.create {\"rect\": [36, 36, 100, 56], \"content\": \"text\", \"text\": \"This will not fit\"}\n")
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let id = v["results"][0]["id"].as_u64().unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    let warnings: Vec<&str> = err.lines().filter(|l| l.starts_with("warning: ")).collect();
+    assert_eq!(warnings.len(), 2, "one per export: {err}");
+    assert!(warnings.iter().all(|w| w.starts_with(&format!("warning: text frame {id} on page 1 doesn't fit its text: the last "))), "{err}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -127,7 +157,7 @@ fn run_help_says_what_the_ids_do_not() {
         "An unassigned frame, a line and a path get a 1 pt [Black] stroke",
         "An answer in words has no keys",
         "If a command fails, run stops there",
-        "a `warning:` line for each text frame whose text doesn't fit",
+        "a `warning:` line for each text frame in the document whose text doesn't fit it",
     ] {
         assert!(help.contains(fact), "missing: {fact}\n{help}");
     }
@@ -253,6 +283,11 @@ fn a_failing_command_says_which_and_what_was_not_written() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+fn first_id(stdout: &str) -> u64 {
+    let (_, answer) = stdout.lines().next().unwrap().split_once(" → ").unwrap();
+    serde_json::from_str::<serde_json::Value>(answer).unwrap()["id"].as_u64().unwrap()
+}
+
 #[test]
 fn a_reference_into_a_worded_answer_says_where_the_id_is() {
     let out = cli()
@@ -269,7 +304,7 @@ fn a_reference_into_a_worded_answer_says_where_the_id_is() {
         .unwrap();
     assert!(!out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let id = stdout.lines().next().unwrap().trim_start_matches("frame.create → {\"id\":").trim_end_matches('}').to_string();
+    let id = first_id(&stdout);
     assert_eq!(
         String::from_utf8_lossy(&out.stderr),
         format!(
@@ -306,7 +341,7 @@ fn an_export_warns_about_text_that_does_not_fit() {
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "{err}");
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let id = stdout.lines().next().unwrap().trim_start_matches("frame.create → {\"id\":").split(',').next().unwrap().to_string();
+    let id = first_id(&stdout);
     let warning =
         format!("warning: text frame {id} on page 1 doesn't fit its text: none of “32” is shown; enlarge the frame or make the type smaller\n");
     let lines: Vec<&str> = err.lines().collect();

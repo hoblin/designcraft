@@ -877,16 +877,16 @@ fn frame_create(s: &mut Session, p: &Value) -> Result<Value> {
         }
         let id = ItemId(d.alloc());
         let mut it = Item::new(id, lid, sh, path);
+        let mut answer = json!({"id": id.0});
         if content == "graphic" {
             it.object_style = d.styles.default_graphic_frame.clone();
-            d.insert_item(sr, it, None)?;
-            *sel = Selection::items(vec![id]);
-            return Ok(json!({"id": id.0}));
+        } else {
+            it.stroke = Stroke::default();
+            answer["stroke"] = crate::describe::default_stroke("an unassigned frame (a graphic frame gets none)").into();
         }
-        it.stroke = Stroke::default();
         d.insert_item(sr, it, None)?;
         *sel = Selection::items(vec![id]);
-        Ok(json!({"id": id.0, "stroke": crate::describe::default_stroke("an unassigned frame (a graphic frame gets none)")}))
+        Ok(answer)
     })
 }
 

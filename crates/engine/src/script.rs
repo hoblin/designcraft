@@ -95,20 +95,19 @@ fn no_key(r: &str, key: &str, idx: usize, v: &Value, results: &[Value]) -> Strin
     };
     match v {
         Value::String(said) => {
-            format!("`${r}`: step {idx} (counted from 0) answered in words, “{}”, not with keys, so it has no `{key}`; {elsewhere}", short_text(said))
+            format!("`${r}`: step {idx} (counted from 0) answered in words, “{}”, not with keys, so it has no `{key}`; {elsewhere}", clip(said))
         }
         Value::Object(_) => format!("`${r}`: the answer of step {idx} (counted from 0), {}, has no `{key}`; {elsewhere}", short(v)),
         _ => format!("`${r}`: no `{key}` in {}; {elsewhere}", short(v)),
     }
 }
 
-fn short_text(s: &str) -> String {
-    if s.len() > 120 { format!("{}…", &s[..s.floor_char_boundary(120)]) } else { s.to_string() }
+fn clip(s: &str) -> String {
+    s.get(..s.floor_char_boundary(120)).filter(|_| s.len() > 120).map_or_else(|| s.to_string(), |head| format!("{head}…"))
 }
 
 fn short(v: &Value) -> String {
-    let s = v.to_string();
-    if s.len() > 120 { format!("{}…", &s[..s.floor_char_boundary(120)]) } else { s }
+    clip(&v.to_string())
 }
 
 /// Replace references in `params` with values from earlier `results`.
@@ -227,6 +226,8 @@ mod tests {
         assert!(said.ends_with("steps 0, 2 answered with `id`: `$0.id`, `$2.id`"), "{said}");
         let said = resolve(&json!("$1.frame"), &results).unwrap_err();
         assert!(said.ends_with("no step so far answered with `frame`"), "{said}");
+        let said = resolve(&json!("$0.id"), &[json!([4, 5])]).unwrap_err();
+        assert_eq!(said, "`$0.id`: no `id` in [4,5]; no step so far answered with `id`");
     }
 
     #[test]

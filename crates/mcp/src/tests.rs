@@ -277,6 +277,26 @@ fn ui_only_tools_explain_how_to_connect() {
 }
 
 #[test]
+fn an_export_or_render_names_the_frame_whose_text_does_not_fit() {
+    let mut s = server();
+    let out = tmp("fits.png");
+    assert!(ok(&mut s, "export_png", json!({"path": out, "scale": 0.1})).get("warnings").is_none());
+    assert!(ok(&mut s, "render_page", json!({"scale": 0.1})).get("warnings").is_none());
+    let tiny = ok(
+        &mut s,
+        "execute",
+        json!({"command": "frame.create", "params": {"rect": [36, 300, 100, 320], "content": "text", "text": "This will not fit"}}),
+    );
+    let expected = format!("text frame {} on page 1 doesn't fit its text: the last ", tiny["id"]);
+    for tool in ["export_png", "render_page"] {
+        let r = ok(&mut s, tool, json!({"path": out, "scale": 0.1}));
+        let warnings = r["warnings"].as_array().unwrap();
+        assert_eq!(warnings.len(), 1, "{tool}: {r}");
+        assert!(warnings[0].as_str().unwrap().starts_with(&expected), "{tool}: {r}");
+    }
+}
+
+#[test]
 fn files_place_and_export() {
     let mut s = server();
     // A 4×2 red PNG made by the renderer's encoder.
@@ -294,17 +314,6 @@ fn files_place_and_export() {
     let out = tmp("page.png");
     let e = ok(&mut s, "export_png", json!({"path": out, "scale": 0.5}));
     assert_eq!(e["width"], 306);
-    assert!(e.get("warnings").is_none(), "{e}");
-    let tiny = ok(
-        &mut s,
-        "execute",
-        json!({"command": "frame.create", "params": {"rect": [36, 300, 100, 320], "content": "text", "text": "This will not fit"}}),
-    );
-    let e = ok(&mut s, "export_png", json!({"path": out, "scale": 0.5}));
-    let warning = e["warnings"][0].as_str().unwrap_or_default();
-    assert!(warning.starts_with(&format!("text frame {} on page 1 doesn't fit its text", tiny["id"])), "{e}");
-    assert!(ok(&mut s, "render_page", json!({"scale": 0.1}))["warnings"][0].as_str().is_some());
-    ok(&mut s, "execute", json!({"command": "edit.clear", "params": {"ids": [tiny["id"]]}}));
     assert!(std::fs::read(&out).unwrap().starts_with(PNG_MAGIC));
     let r = call(&mut s, "render_page", json!({"path": tmp("render.png")}));
     assert_eq!(r["isError"], false);

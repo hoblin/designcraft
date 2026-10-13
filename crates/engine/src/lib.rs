@@ -462,6 +462,14 @@ impl Session {
         self.active().map(|st| describe::overset(&st.doc, &self.cache)).unwrap_or_default()
     }
 
+    /// Puts [`Self::overset`] into `answer` as `warnings`, when there is anything to say.
+    pub fn warn_overset(&self, answer: &mut Value) {
+        let overset = self.overset();
+        if !overset.is_empty() {
+            answer["warnings"] = overset.into();
+        }
+    }
+
     /// A session with one new document open and nothing selected.
     pub fn with_new() -> Self {
         let mut s = Session::new();

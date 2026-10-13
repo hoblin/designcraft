@@ -324,6 +324,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 if out.ends_with(".epub") {
                     let r = s.execute("file.exportEpub", &json!({"path": out})).map_err(|e| e.to_string())?;
                     eprintln!("wrote {out} ({} bytes)", r["bytes"]);
+                    warn_overset(&s);
                 } else if out.ends_with(".pdf") {
                     let mut p = pdf_opts.clone();
                     p["path"] = json!(out);
@@ -518,15 +519,18 @@ fn script(args: &[String]) -> Result<(), String> {
         for out in &export {
             let lower = out.to_lowercase();
             let p = json!({"path": out});
-            if lower.ends_with(".pdf") {
-                exec(b, "file.exportPdf", p)?;
+            let r = if lower.ends_with(".pdf") {
+                exec(b, "file.exportPdf", p)?
             } else if lower.ends_with(".idml") {
-                exec(b, "file.exportIdml", p)?;
+                exec(b, "file.exportIdml", p)?
             } else if lower.ends_with(".epub") {
-                exec(b, "file.exportEpub", p)?;
+                exec(b, "file.exportEpub", p)?
             } else {
                 // PNG / JPEG of the first page.
-                b.call("app.export", p)?;
+                b.call("app.export", p)?
+            };
+            for w in r["warnings"].as_array().into_iter().flatten() {
+                eprintln!("warning: {}", w.as_str().unwrap_or_default());
             }
         }
     }

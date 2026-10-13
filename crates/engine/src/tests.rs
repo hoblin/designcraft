@@ -748,7 +748,7 @@ fn an_export_names_the_frame_whose_text_does_not_fit() {
     let long = "The quick brown fox jumps over the lazy dog and keeps running into the night without a pause";
     let r = s.call("frame.create", &json!({"rect": [36, 300, 200, 324], "content": "text", "text": long})).unwrap();
     let (first, story) = (r["id"].clone(), r["story"].clone());
-    let [said] = s.overset().try_into().unwrap_or_default();
+    let [said]: [String; 1] = s.overset().try_into().unwrap();
     assert!(said.starts_with(&format!("text frame {first} on page 1 doesn't fit its text: the last ")), "{said}");
     assert!(
         said.contains(" of its 92 characters, from “") && said.ends_with("…”, are not shown; enlarge the frame or make the type smaller"),
@@ -762,7 +762,7 @@ fn an_export_names_the_frame_whose_text_does_not_fit() {
         Ok(())
     })
     .unwrap();
-    let [said] = s.overset().try_into().unwrap_or_default();
+    let [said]: [String; 1] = s.overset().try_into().unwrap();
     assert!(said.starts_with(&format!("the thread ending in text frame {} on page 1 doesn't fit its text", next.0)), "{said}");
 }
 
