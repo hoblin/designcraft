@@ -1,6 +1,6 @@
 # DesignCraft architecture
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (cancelable macOS Dock Quit) · **Target:** Adobe InDesign 2026
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (fork release workflow) · **Target:** Adobe InDesign 2026
 
 How DesignCraft is built today. The design notes behind it are in `plan/architecture.md`
 (local, gitignored); this file describes what the code on `main` does. Agents: AGENTS.md has the
@@ -102,6 +102,7 @@ which builds a Linux x86_64 tarball on every `v*` tag; `xtask ci` runs locally.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-13 | minor | CI section: the fork's release workflow builds a Linux x86_64 tarball on tag; FreeBSD and Windows ARM64 builds removed |
 | 2026-10-12 | minor | Documented cancelable Dock Quit through the native event-loop boundary |
 | 2026-10-12 | minor | Documented orderly native exit recovery and the remaining cancelable Dock Quit gap |
 | 2026-10-10 | major | Created from the code on main (92649ff) and `plan/architecture.md` |

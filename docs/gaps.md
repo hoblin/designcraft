@@ -96,7 +96,7 @@ Kind: **F** feature · **U** UI/UX · **T** typography · **FF** file format · 
 
 ### 7. No CI runs the tests on pull requests (S)
 - **Missing:** a PR workflow running `cargo xtask ci` (fmt, clippy, tests, layers, wasm). Today
-  only FreeBSD and Windows ARM build checks run, and only when manifests change; `main` has no
+  only packaging lint runs on pull requests, and only when packaging files change; `main` has no
   branch protection. 65 PRs are open, some integrated in bulk (#259).
 - **Impact:** regressions land unseen; the 1,122 tests protect nothing they aren't run on.
 - **Estimate:** 4–8 h (plus runner minutes; owner decision on required checks).
