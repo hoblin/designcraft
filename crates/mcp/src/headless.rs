@@ -105,7 +105,7 @@ impl Headless {
     }
 
     fn selection(&self) -> Value {
-        self.session.active().map(|d| serde_json::to_value(&d.selection).unwrap_or_default()).unwrap_or(Value::Null)
+        self.session.active().map(designcraft_engine::DocState::selection_json).unwrap_or(Value::Null)
     }
 
     fn pointer(&mut self, p: &Value) -> Result<Value, String> {

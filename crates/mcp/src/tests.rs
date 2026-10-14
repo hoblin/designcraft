@@ -548,3 +548,16 @@ fn every_tool_takes_the_arguments_its_schema_declares() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn key_answers_the_caret_in_characters() {
+    let mut s = server();
+    ok(
+        &mut s,
+        "pointer",
+        json!({"tool": "type", "events": [{"kind": "down", "x": 72, "y": 72}, {"kind": "drag", "x": 300, "y": 200}, {"kind": "up", "x": 300, "y": 200}]}),
+    );
+    ok(&mut s, "type_text", json!({"text": "ää"}));
+    let k = ok(&mut s, "key", json!({"key": "Left"}));
+    assert_eq!((k["selection"]["text"]["anchor"].clone(), k["selection"]["text"]["focus"].clone()), (json!(1), json!(1)));
+}

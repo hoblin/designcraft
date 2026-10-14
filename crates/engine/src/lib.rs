@@ -167,6 +167,17 @@ impl DocState {
     pub fn is_dirty(&self) -> bool {
         !Arc::ptr_eq(&self.doc, &self.saved_doc)
     }
+    /// The selection as JSON, its text positions in characters.
+    pub fn selection_json(&self) -> Value {
+        let mut v = serde_json::to_value(&self.selection).unwrap_or_default();
+        if let Some(t) = self.selection.text
+            && let Some(story) = self.doc.text_story(t.story, t.cell)
+        {
+            v["text"]["anchor"] = Value::from(designcraft_doc::story::char_offset(&story.text, t.anchor));
+            v["text"]["focus"] = Value::from(designcraft_doc::story::char_offset(&story.text, t.focus));
+        }
+        v
+    }
     pub fn title(&self) -> String {
         self.path
             .as_deref()
