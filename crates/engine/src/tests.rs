@@ -877,3 +877,13 @@ fn undo_does_not_warn_about_a_story_it_did_not_touch() {
     let undone = said(&mut s, "edit.undo", json!({}));
     assert!(!undone.contains("overset"), "{undone}");
 }
+
+#[test]
+fn a_text_hyperlink_lists_its_range_in_characters() {
+    let mut s = session();
+    let story = s.call("frame.create", &json!({"rect": [36, 36, 300, 200], "content": "text", "text": "Lisää tietoa"})).unwrap()["story"].clone();
+    s.call("text.select", &json!({"story": story, "anchor": 6, "focus": 12})).unwrap();
+    s.call("hyperlink.create", &json!({"url": "https://example.com"})).unwrap();
+    let source = s.call("hyperlink.list", &json!({})).unwrap()[0]["source"].clone();
+    assert_eq!((source["start"].clone(), source["end"].clone()), (json!(6), json!(12)));
+}

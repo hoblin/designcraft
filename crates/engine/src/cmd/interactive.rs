@@ -24,7 +24,19 @@ pub fn specs() -> Vec<CommandSpec> {
                 Ok(Value::Null)
             })
         }),
-        cmd!(query "hyperlink.list", "Hyperlinks", [], None, "{}", has_doc, |s, _| Ok(serde_json::to_value(&s.doc()?.doc.hyperlinks).unwrap_or_default())),
+        cmd!(query "hyperlink.list", "Hyperlinks", [], None, "{} → [{id, name, source: {kind: item, id} | {kind: text, story, start, end (character offsets)}, dest}]", has_doc, |s, _| {
+            let d = &s.doc()?.doc;
+            let mut list = serde_json::to_value(&d.hyperlinks).unwrap_or_default();
+            for (h, v) in d.hyperlinks.iter().zip(list.as_array_mut().into_iter().flatten()) {
+                if let HyperlinkSource::Text { story, start, end } = h.source
+                    && let Some(st) = d.story(story)
+                {
+                    v["source"]["start"] = json!(designcraft_doc::story::char_offset(&st.text, start));
+                    v["source"]["end"] = json!(designcraft_doc::story::char_offset(&st.text, end));
+                }
+            }
+            Ok(list)
+        }),
         cmd!("hyperlink.edit", "Hyperlink Options…", [], None, "{id, name?, url? | email? | page? (1-based)}", has_doc, |s, p| {
             let id = p.get("id").and_then(Value::as_u64).ok_or_else(|| bad("hyperlink.edit", "missing id"))?;
             let dest = dest_param(p);

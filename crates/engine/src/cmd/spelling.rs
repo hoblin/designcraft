@@ -3,7 +3,7 @@
 
 use designcraft_compose::hyphen::Dictionary;
 use designcraft_doc::StoryId;
-use designcraft_doc::story::{byte_offset, char_offset};
+use designcraft_doc::story::byte_offset;
 use serde_json::{Value, json};
 
 use super::{CommandSpec, bad, cmd, has_doc, str_param};
@@ -215,10 +215,18 @@ fn check(s: &mut Session, p: &Value) -> Result<Value> {
     let mut out = Vec::new();
     for sid in stories {
         let Some(story) = d.story(sid) else { continue };
+        let mut counted = (0, 0);
+        let mut chars = |byte: usize| {
+            if byte < counted.0 {
+                counted = (0, 0);
+            }
+            counted = (byte, counted.1 + story.text.get(counted.0..byte).map_or(0, |t| t.chars().count()));
+            counted.1
+        };
         for r in misspellings(d, story, &d.user_words) {
             let word = story.text.get(r.clone()).unwrap_or_default();
             let sugg = if want_sugg { suggest(dict, &word.to_lowercase()) } else { vec![] };
-            let (start, end) = (char_offset(&story.text, r.start), char_offset(&story.text, r.end));
+            let (start, end) = (chars(r.start), chars(r.end));
             out.push(json!({"story": sid.0, "start": start, "end": end, "word": word, "suggestions": sugg}));
         }
     }
