@@ -41,9 +41,9 @@ What the ids don't say:
   selects the frame instead, or pass the answered id in `ids`. type.char and type.para act on the
   selected text, else on all the text of the selected frames: text.select {\"story\": N, \"anchor\": 0,
   \"focus\": 5} selects characters 0–5 of a story. A command whose parameters list `ids` acts on those
-  objects, else on the selected ones, each on its own: transform.set {\"height\": 50} on five frames
-  makes each 50 high (\"each\": false sizes their box as one). selection.set {\"ids\": [...]} selects
-  objects.
+  objects, else on the selected ones; selection.set {\"ids\": [...]} selects objects. transform.set
+  sets each object on its own: {\"height\": 50} on five frames makes each 50 high (\"each\": false
+  sizes their box as one).
 - Text positions (text.select, story.replaceRange, find.find, spelling.check, changes.list, a story's
   length) count characters: ä, — and は are one each, and so is a paragraph break. A position past
   the end is the end.

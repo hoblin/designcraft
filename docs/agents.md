@@ -38,11 +38,10 @@ What else the ids don't say (`designcraft-cli help run` has the full list):
 - `frame.create` selects the frame it creates, except a text frame: there it puts the caret in the text and leaves the
   frame unselected, so `object.fill` right after it says "nothing selected". `"caret": false` selects the frame, or
   pass the answered `id` in `ids`.
-- A command whose parameters list `ids` acts on those objects, else on the selected ones, each on its own:
-  `transform.set {"height": 50}` on five frames makes each 50 high (InDesign's Transform Each).
+- `transform.set` sets each target object on its own: `{"height": 50}` on five frames makes each 50 high
+  (InDesign's Transform Each); `"each": false` treats their box as one.
 - Text positions (`text.select`, `story.replaceRange`, `find.find`, `spelling.check`, `changes.list`, a story's
   `length`) count characters, and in story text a command takes, `\n`, `\r` and `\r\n` each end a paragraph.
-- `transform.set` on several objects sizes and places each on its own; `"each": false` treats their box as one.
 - A story whose text doesn't fit its frames is overset: the rest isn't shown. `overset` in `story.get` and
   `document.inspect` counts those characters, and a command that leaves a story overset warns, after a `;` in a
   sentence answer or in `warnings` of a JSON one.

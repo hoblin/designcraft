@@ -27,7 +27,8 @@ execute type.char / style.paragraph.apply → render_page to look at the result.
 shown, and a command that leaves a story overset says so as a warning. place_image puts a picture on the page. Object ids are unique in the \
 document. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text and \
 leaves the frame unselected (caret:false selects the frame instead); a command whose parameters list `ids` acts on \
-those objects, else on the selected ones, each on its own (selection.set {ids:[…]} selects). Text positions count \
+those objects, else on the selected ones (selection.set {ids:[…]} selects); transform.set sets each object on its \
+own unless each:false. Text positions count \
 characters (ä is one); in story text, \\n or \\r ends a paragraph. find.change answers the stories it changed. A parameter string is a reference only \
 in the exact form \"$N.key\" or \"$last.key\", and \"${N.key}\" inside a longer string; any other $ is passed as \
 written, so find.change's change can use $1. The built-in swatches are [Black], [Paper], [None] and [Registration], brackets included. \

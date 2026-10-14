@@ -6,6 +6,7 @@
 mod fill;
 mod parse;
 
+use designcraft_doc::story::byte_offset;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -53,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Insert Field",
             [],
             None,
-            "{field, role?: text|image|qr|hyperlink, story?, at?, end?, item?} → {id}",
+            "{field, role?: text|image|qr|hyperlink, story?, at?, end? (character offsets), item?} → {id}",
             has_doc,
             placeholder_add
         ),
@@ -483,7 +484,7 @@ fn add_placeholder(d: &mut Document, sel: &Selection, p: &Value, name: &str) -> 
         if matches!(role, PlaceholderRole::Image | PlaceholderRole::Qr) {
             return Err(bad("data.placeholder.add", "image and qr placeholders bind to a frame"));
         }
-        let (story, at, end) = text_target(p, sel).ok_or_else(|| bad("data.placeholder.add", "select text or a frame"))?;
+        let (story, at, end) = text_target(p, sel, d).ok_or_else(|| bad("data.placeholder.add", "select text or a frame"))?;
         if d.story(story).is_none() {
             return Err(bad("data.placeholder.add", "no story"));
         }
@@ -510,11 +511,12 @@ fn add_placeholder(d: &mut Document, sel: &Selection, p: &Value, name: &str) -> 
     Ok(json!({"id": id}))
 }
 
-fn text_target(p: &Value, sel: &Selection) -> Option<(StoryId, usize, usize)> {
+fn text_target(p: &Value, sel: &Selection, d: &Document) -> Option<(StoryId, usize, usize)> {
     if let Some(n) = p.get("story").and_then(Value::as_u64) {
-        let at = p.get("at").and_then(Value::as_u64).unwrap_or(0) as usize;
-        let end = p.get("end").and_then(Value::as_u64).map(|v| v as usize).unwrap_or(at);
-        return Some((StoryId(n), at, end.max(at)));
+        let text = d.story(StoryId(n)).map_or("", |st| st.text.as_str());
+        let at = super::char_param(p, "at").unwrap_or(0);
+        let end = super::char_param(p, "end").unwrap_or(at).max(at);
+        return Some((StoryId(n), byte_offset(text, at), byte_offset(text, end)));
     }
     sel.text.map(|t| {
         let r = t.range();

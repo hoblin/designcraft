@@ -129,7 +129,7 @@ fn run_help_says_what_the_ids_do_not() {
         "Rust's regex crate",
         "[Black], [Paper], [None] and [Registration]",
         "If a command fails, run stops there",
-        "transform.set {\"height\": 50} on five frames makes each 50 high",
+        "{\"height\": 50} on five frames makes each 50 high",
         "Text positions (text.select, story.replaceRange, find.find, spelling.check, changes.list, a story's length) count characters",
         "\\n, \\r and \\r\\n each end a paragraph",
         "a command that leaves a story overset says so in its answer",
@@ -415,4 +415,11 @@ fn a_run_that_fails_after_changing_the_document_says_the_changes_are_gone() {
             ),
         "{err}"
     );
+}
+
+#[test]
+fn changes_left_in_a_document_that_is_no_longer_active_are_named() {
+    let out = cli().args(["run", "--cmd", r#"frame.create={"rect":[36,36,100,100]}"#, "--cmd", "file.new"]).output().unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.starts_with("not saved: this run changed Untitled-1 (file.activate switches documents) and wrote no .designcraft"), "{err}");
 }
