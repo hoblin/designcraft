@@ -1,6 +1,7 @@
 //! Index: page references (New Page Reference) and Generate Index.
 
 use designcraft_doc::index::{IndexRange, IndexRef, IndexSpec, Resolved};
+use designcraft_doc::story::char_offset;
 use designcraft_doc::{Document, INDEX_MARK, ParaAttrs, ParaFormat, ParagraphStyle, SpreadRef, StoryId, TextSel};
 use designcraft_geom::Rect;
 use serde_json::{Value, json};
@@ -87,7 +88,7 @@ fn add_reference(s: &mut Session, p: &Value) -> Result<Value> {
         st.insert_index_ref(at, r.clone());
         let shift = INDEX_MARK.len_utf8();
         sel.text = Some(TextSel { anchor: t.anchor + shift, focus: t.focus + shift, ..t });
-        Ok(json!({"pos": at}))
+        Ok(json!({"pos": char_offset(&st.text, at)}))
     })
 }
 
@@ -124,7 +125,7 @@ fn list(s: &mut Session, _: &Value) -> Result<Value> {
     let rs = resolve(s, &d, None);
     Ok(Value::Array(
         rs.into_iter()
-            .map(|(sid, pos, r)| json!({"story": sid.0, "pos": pos, "topics": r.r.topics, "range": r.r.range, "page": r.pages.map(|p| d.page_name(p.0))}))
+            .map(|(sid, pos, r)| json!({"story": sid.0, "pos": d.story(sid).map_or(0, |x| char_offset(&x.text, pos)), "topics": r.r.topics, "range": r.r.range, "page": r.pages.map(|p| d.page_name(p.0))}))
             .collect(),
     ))
 }
@@ -248,7 +249,7 @@ mod tests {
         assert_eq!(s.doc().unwrap().doc.story(sid).unwrap().paras[6].style, "Index Level 1");
         assert_eq!(s.doc().unwrap().doc.story(sid).unwrap().paras[7].style, "Index Level 2");
         // Deleting a marked word removes its reference; update regenerates in place.
-        s.execute("text.select", &json!({"story": sids[0].0, "anchor": 0, "focus": INDEX_MARK.len_utf8() + 7})).unwrap();
+        s.execute("text.select", &json!({"story": sids[0].0, "anchor": 0, "focus": 1 + "Kerning".len()})).unwrap();
         s.execute("text.delete", &json!({})).unwrap();
         s.execute("index.update", &json!({})).unwrap();
         let text = s.doc().unwrap().doc.story(sid).unwrap().text.clone();

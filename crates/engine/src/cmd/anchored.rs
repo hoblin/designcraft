@@ -1,5 +1,6 @@
 //! Object › Anchored Object: items that flow with the text (inline or above the line).
 
+use designcraft_doc::story::{byte_offset, char_offset};
 use std::sync::Arc;
 
 use designcraft_doc::{
@@ -40,13 +41,13 @@ pub fn specs() -> Vec<CommandSpec> {
             has_doc,
             release
         ),
-        cmd!(query "anchored.list", "Anchored Objects", [], None, "{story?} → [{story, index, pos, position, size}]", has_doc, |s, p| {
+        cmd!(query "anchored.list", "Anchored Objects", [], None, "{story?} → [{story, index, pos (character offset), position, size}]", has_doc, |s, p| {
             let d = &s.doc()?.doc;
             let only = p.get("story").and_then(Value::as_u64).map(StoryId);
             let mut out = Vec::new();
             for st in d.stories.values().filter(|st| only.is_none_or(|o| o == st.id)) {
                 for (k, ((pos, _), o)) in st.text.match_indices(OBJECT_MARK).zip(&st.objects).enumerate() {
-                    out.push(json!({"story": st.id.0, "index": k, "pos": pos, "position": o.position, "size": o.size()}));
+                    out.push(json!({"story": st.id.0, "index": k, "pos": char_offset(&st.text, pos), "position": o.position, "size": o.size()}));
                 }
             }
             Ok(Value::Array(out))
@@ -130,8 +131,11 @@ fn insert(s: &mut Session, p: &Value) -> Result<Value> {
     let ids = super::ids_param(p, "ids").ok_or_else(|| bad("anchored.insert", "missing ids"))?;
     let position = position_param(p, &AnchorPosition::default())?;
     let st = s.doc()?;
-    let (sid, pos) = match (p.get("story").and_then(Value::as_u64), p.get("pos").and_then(Value::as_u64)) {
-        (Some(sid), pos) => (StoryId(sid), pos.map(|v| v as usize).unwrap_or(usize::MAX)),
+    let (sid, pos) = match (p.get("story").and_then(Value::as_u64), super::char_param(p, "pos")) {
+        (Some(sid), pos) => {
+            let text = st.doc.story(StoryId(sid)).map_or("", |x| x.text.as_str());
+            (StoryId(sid), pos.map_or(usize::MAX, |n| byte_offset(text, n)))
+        }
         _ => {
             let t = st
                 .selection
@@ -157,7 +161,7 @@ fn insert(s: &mut Session, p: &Value) -> Result<Value> {
         }
         let end = anchor_items(d, sid, pos, items.clone(), &position)?;
         *sel = designcraft_doc::Selection::text(TextSel { story: sid, anchor: end, focus: end, frame: None, cell: None });
-        Ok(json!({"story": sid.0, "pos": end}))
+        Ok(json!({"story": sid.0, "pos": d.story(sid).map_or(0, |x| char_offset(&x.text, end))}))
     })
 }
 

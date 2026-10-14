@@ -1,5 +1,6 @@
 //! Type › Track Changes: record edits as inserted / deleted text; accept or reject them.
 
+use designcraft_doc::story::{byte_offset, char_offset};
 use designcraft_doc::{ChangeMark, Story, StoryId};
 use serde_json::{Value, json};
 
@@ -58,14 +59,16 @@ fn resolve(st: &mut Story, accept: bool) -> usize {
 fn one(s: &mut Session, p: &Value, accept: bool) -> Result<Value> {
     let id = if accept { "changes.accept" } else { "changes.reject" };
     let sid = p.get("story").and_then(Value::as_u64).map(StoryId).ok_or_else(|| super::bad(id, "`story` required"))?;
-    let start = p.get("start").and_then(Value::as_u64).ok_or_else(|| super::bad(id, "`start` required"))? as usize;
+    let start = super::char_param(p, "start").ok_or_else(|| super::bad(id, "`start` required"))?;
     s.edit(|d, sel| {
         let Some(st) = d.story_mut(sid) else { return Err(super::bad(id, super::no_story(sid))) };
+        let start = byte_offset(&st.text, start);
         let (r, mark) = st
             .runs()
             .find(|(r, f)| matches!(f.over.change, Some(ChangeMark::Inserted | ChangeMark::Deleted)) && r.start <= start && start < r.end)
             .map(|(r, f)| (r, f.over.change.unwrap_or_default()))
             .ok_or_else(|| super::bad(id, "no change there"))?;
+        let answer = json!({"start": char_offset(&st.text, r.start), "end": char_offset(&st.text, r.end)});
         // Accepting a deletion or rejecting an insertion removes the text; otherwise it stays, unmarked.
         if (mark == ChangeMark::Deleted) == accept {
             st.delete(r.clone());
@@ -79,7 +82,7 @@ fn one(s: &mut Session, p: &Value, accept: bool) -> Result<Value> {
             t.anchor = t.anchor.min(len);
             t.focus = t.focus.min(len);
         }
-        Ok(json!({"start": r.start, "end": r.end}))
+        Ok(answer)
     })
 }
 
@@ -103,7 +106,8 @@ pub fn specs() -> Vec<CommandSpec> {
                         Some(ChangeMark::Deleted) => "deleted",
                         _ => continue,
                     };
-                    out.push(json!({"story": st.id.0, "start": r.start, "end": r.end, "kind": kind, "text": st.text[r].to_string()}));
+                    let text = st.text.get(r.clone()).unwrap_or_default();
+                    out.push(json!({"story": st.id.0, "start": char_offset(&st.text, r.start), "end": char_offset(&st.text, r.end), "kind": kind, "text": text}));
                 }
             }
             Ok(Value::Array(out))

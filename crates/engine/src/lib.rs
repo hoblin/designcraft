@@ -167,6 +167,17 @@ impl DocState {
     pub fn is_dirty(&self) -> bool {
         !Arc::ptr_eq(&self.doc, &self.saved_doc)
     }
+    /// The selection as JSON, its text positions in characters.
+    pub fn selection_json(&self) -> Value {
+        let mut v = serde_json::to_value(&self.selection).unwrap_or_default();
+        if let Some(t) = self.selection.text
+            && let Some(story) = self.doc.text_story(t.story, t.cell)
+        {
+            v["text"]["anchor"] = Value::from(designcraft_doc::story::char_offset(&story.text, t.anchor));
+            v["text"]["focus"] = Value::from(designcraft_doc::story::char_offset(&story.text, t.focus));
+        }
+        v
+    }
     pub fn title(&self) -> String {
         self.path
             .as_deref()
@@ -424,31 +435,37 @@ impl Session {
     /// Run command `id` for a caller outside the app (the CLI, MCP, the control channel): parameters
     /// the command doesn't take are refused, and a command with no answer of its own, or only a
     /// count of changed objects, answers with what it changed, as a sentence (`changed text frame 8
-    /// on page 1`, `nothing changed`). A font family or style the command put in use that isn't
-    /// installed is named after a `;` in that sentence.
+    /// on page 1`, `nothing changed`). Warnings follow after a `;` in that sentence, or in
+    /// `warnings` of an object answer: a font family or style the command put in use that isn't
+    /// installed, and a story the command left overset.
     pub fn call(&mut self, id: &str, params: &Value) -> Result<Value> {
         let spec = find_command(id).ok_or_else(|| EngineError::UnknownCommand(id.into()))?;
         cmd::check_params(spec, params)?;
         let before = self.active().map(|d| (d.uid, d.doc.clone(), d.selection.clone()));
+        let overset_before = match (spec.undoable, &before) {
+            (true, Some((_, doc, _))) => Some(describe::oversets(&self.cache, doc)),
+            _ => None,
+        };
         let asked = self.ui_requests.len();
         let r = self.execute(id, params)?;
-        let bare_count = r.as_object().is_some_and(|o| o.len() == 1 && o.get("changed").is_some_and(Value::is_number));
-        if !r.is_null() && !bare_count {
-            return Ok(r);
-        }
-        let newly_missing: Vec<String> = match (&before, self.active()) {
+        let warnings: Vec<String> = match (&before, self.active()) {
             (Some((uid, old, _)), Some(d)) if *uid == d.uid && !Arc::ptr_eq(old, &d.doc) => {
                 let was = cmd::fonts::missing(old);
-                cmd::fonts::missing(&d.doc)
+                let fonts = cmd::fonts::missing(&d.doc)
                     .into_iter()
                     .filter(|f| !was.contains(f))
-                    .map(|(fam, st)| cmd::fonts::not_installed(&d.doc, &fam, &st))
-                    .collect()
+                    .map(|(fam, st)| cmd::fonts::not_installed(&d.doc, &fam, &st));
+                let overset = overset_before.map(|was| describe::overset_warnings(&self.cache, old, &was, &d.doc)).unwrap_or_default();
+                fonts.chain(overset).collect()
             }
             _ => vec![],
         };
+        let bare_count = r.as_object().is_some_and(|o| o.len() == 1 && o.get("changed").is_some_and(Value::is_number));
+        if !r.is_null() && !bare_count {
+            return Ok(describe::with_warnings(r, warnings));
+        }
         let mut said = describe::changes(before, self.active(), self.ui_requests.get(asked..).unwrap_or_default());
-        for warning in newly_missing {
+        for warning in warnings {
             said.push_str("; ");
             said.push_str(&warning);
         }

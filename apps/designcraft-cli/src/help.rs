@@ -40,8 +40,22 @@ What the ids don't say:
   so object.fill or object.textFrameOptions right after it say \"nothing selected\". \"caret\": false
   selects the frame instead, or pass the answered id in `ids`. type.char and type.para act on the
   selected text, else on all the text of the selected frames: text.select {\"story\": N, \"anchor\": 0,
-  \"focus\": 5} selects bytes 0–5 of a story. A command whose parameters list `ids` acts on those
-  objects, else on the selected ones; selection.set {\"ids\": [...]} selects objects.
+  \"focus\": 5} selects characters 0–5 of a story. A command whose parameters list `ids` acts on those
+  objects, else on the selected ones; selection.set {\"ids\": [...]} selects objects. transform.set
+  sets each object on its own: {\"height\": 50} on five frames makes each 50 high (\"each\": false
+  sizes their box as one).
+- Text positions (text.select, story.replaceRange, find.find, spelling.check, changes.list, a story's
+  length) count characters: ä, — and は are one each, and so is a paragraph break. A position past
+  the end is the end.
+- In story text a command takes (frame.create, text.insert, story.setText, story.replaceRange,
+  find.change, footnotes, endnotes, table cells, type on a path), \\n, \\r and \\r\\n each end a
+  paragraph; \\u2028 is a line break inside one.
+- A story is overset when its text doesn't fit its frames: the rest isn't shown, even a single big
+  glyph that is taller than the frame. `overset` in story.get and document.inspect counts those
+  characters (0 when all fit), and a command that leaves a story overset says so in its answer, as a
+  warning.
+- file.place puts an image into the selected frame only when that frame is empty; else it makes a new
+  frame. `frame` names a frame to replace the image in.
 - A string parameter \"$N.key\" is the `key` of the answer of --cmd N (counted from 0), \"$last.key\"
   the previous command's: after frame.create answers {\"id\": 8, \"story\": 9}, \"story\": \"$0.story\"
   passes 9. Inside a longer string, \"${N.key}\" is replaced by the value's text. Only those exact
@@ -49,26 +63,32 @@ What the ids don't say:
   find.change as written.
 - find.find, find.change and find.next with \"grep\": true take a regular expression of Rust's regex
   crate: no look-around, no backreferences. In change, $1 is the first group, $name a named one, $$ a
-  dollar sign; a letter right after a group needs ${1}.
+  dollar sign; a letter right after a group needs ${1}. find.change searches every story unless
+  `story` or `scope` narrows it, and answers {\"count\", \"stories\"}: the matches it changed and the
+  stories they were in.
 - A fill or stroke names a swatch; [Black], [Paper], [None] and [Registration] are built in, brackets
   included, and swatch.create adds one, answering its name.
 
 Every command prints one line, `COMMAND → ANSWER`: the command's own answer as JSON, or what it changed
-in words. If a command fails, run stops there; what came before it ran, including earlier exports.
+in words, with warnings (a font not installed, overset text) after a `;` or in \"warnings\". If a
+command fails, run stops there; what came before it ran, including earlier exports.
 
 --export OUT writes the document by OUT's extension: .png or .jpg of one page, .pdf, .idml, .epub, or
 .designcraft (a save). --page N (counted from 0, 0 by default), --scale S (pixels per point, 1 by
 default) and --pdf-options JSON (the parameters of file.exportPdf) apply to the exports after them.
 --all-pages DIR writes page-001.png, page-002.png… into DIR. Each export prints one line on stderr,
-e.g. `wrote sale.png (612×792, 32.6 ms, 11 glyphs)`.",
+e.g. `wrote sale.png (612×792, 32.6 ms, 11 glyphs)`.
+
+Nothing is saved unless an --export writes a .designcraft: --in FILE reads FILE and leaves it as it
+was. A run that changes the document and doesn't save it ends with a `not saved:` line on stderr.",
     },
     Subcommand {
         name: "commands",
         usage: "commands [FILTER]",
-        summary: "list the commands run can use, one per line",
-        details: "Lists the commands that run --cmd, script, app and the MCP server take, one per line: the id, its
-name in the app and its parameters. FILTER keeps the commands whose id, name or menu contains it,
-ignoring case.
+        summary: "list the commands run can use, by area",
+        details: "Lists the commands that run --cmd, script, app and the MCP server take, grouped by area (the part of
+the id before the dot), one per line: the id, its name in the app and its parameters. The first line
+names the areas. FILTER keeps the commands whose id, name or menu contains it, ignoring case.
 
   designcraft-cli commands frame.
 

@@ -464,11 +464,18 @@ pub(crate) fn bool_or(p: &Value, key: &str, default: bool) -> bool {
 pub(crate) fn str_param<'a>(p: &'a Value, key: &str) -> Option<&'a str> {
     p.get(key).and_then(Value::as_str)
 }
-/// Plain text from a parameter, with CR LF and lone CR (classic Mac and InDesign line ends) as
-/// `\n`, the paragraph separator, as edit.paste and text import already do. Kept as they were,
-/// the CRs joined the paragraphs into one.
 pub(crate) fn text_param(p: &Value, key: &str) -> String {
-    str_param(p, key).unwrap_or("").replace("\r\n", "\n").replace('\r', "\n")
+    paragraphs(str_param(p, key).unwrap_or(""))
+}
+/// CR LF and a lone CR (classic Mac and InDesign line ends) become `\n`, the paragraph separator.
+pub(crate) fn paragraphs(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+pub(crate) fn overset(story: &designcraft_doc::Story, cs: &designcraft_compose::ComposedStory) -> usize {
+    cs.overset_at.and_then(|at| story.text.get(designcraft_doc::story::floor_char_boundary(&story.text, at)..)).map_or(0, |rest| rest.chars().count())
+}
+pub(crate) fn char_param(p: &Value, key: &str) -> Option<usize> {
+    p.get(key).and_then(Value::as_u64).map(|n| usize::try_from(n).unwrap_or(usize::MAX))
 }
 pub(crate) fn id_param(p: &Value, key: &str) -> Option<ItemId> {
     p.get(key).and_then(Value::as_u64).map(ItemId)

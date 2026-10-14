@@ -3,6 +3,7 @@
 
 use designcraft_compose::hyphen::Dictionary;
 use designcraft_doc::StoryId;
+use designcraft_doc::story::byte_offset;
 use serde_json::{Value, json};
 
 use super::{CommandSpec, bad, cmd, has_doc, str_param};
@@ -70,11 +71,11 @@ pub fn specs() -> Vec<CommandSpec> {
         }),
         cmd!("spelling.change", "Change", [], None, "{story, start, end, to}", has_doc, |s, p| {
             let sid = StoryId(p.get("story").and_then(Value::as_u64).ok_or_else(|| bad("spelling.change", "missing story"))?);
-            let (a, b) = (p.get("start").and_then(Value::as_u64).unwrap_or(0) as usize, p.get("end").and_then(Value::as_u64).unwrap_or(0) as usize);
+            let (a, b) = (super::char_param(p, "start").unwrap_or(0), super::char_param(p, "end").unwrap_or(0));
             let to = str_param(p, "to").unwrap_or("").to_string();
             s.edit(|d, _| {
                 let st = d.story_mut(sid).ok_or(designcraft_doc::DocError::NoStory(sid))?;
-                st.replace(a.min(st.len())..b.min(st.len()), &to);
+                st.replace(byte_offset(&st.text, a)..byte_offset(&st.text, b.max(a)), &to);
                 Ok(Value::Null)
             })
         }),
@@ -214,10 +215,19 @@ fn check(s: &mut Session, p: &Value) -> Result<Value> {
     let mut out = Vec::new();
     for sid in stories {
         let Some(story) = d.story(sid) else { continue };
+        let mut counted = (0, 0);
+        let mut chars = |byte: usize| {
+            if byte < counted.0 {
+                counted = (0, 0);
+            }
+            counted = (byte, counted.1 + story.text.get(counted.0..byte).map_or(0, |t| t.chars().count()));
+            counted.1
+        };
         for r in misspellings(d, story, &d.user_words) {
-            let word = &story.text[r.clone()];
+            let word = story.text.get(r.clone()).unwrap_or_default();
             let sugg = if want_sugg { suggest(dict, &word.to_lowercase()) } else { vec![] };
-            out.push(json!({"story": sid.0, "start": r.start, "end": r.end, "word": word, "suggestions": sugg}));
+            let (start, end) = (chars(r.start), chars(r.end));
+            out.push(json!({"story": sid.0, "start": start, "end": end, "word": word, "suggestions": sugg}));
         }
     }
     Ok(Value::Array(out))

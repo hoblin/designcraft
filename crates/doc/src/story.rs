@@ -523,9 +523,24 @@ pub fn floor_char_boundary(s: &str, mut i: usize) -> usize {
     i
 }
 
+pub fn char_offset(s: &str, byte: usize) -> usize {
+    s.get(..floor_char_boundary(s, byte)).map_or(0, |head| head.chars().count())
+}
+
+pub fn byte_offset(s: &str, chars: usize) -> usize {
+    s.char_indices().nth(chars).map_or(s.len(), |(i, _)| i)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offsets_convert_between_characters_and_bytes_and_clamp_to_the_end() {
+        let s = "é漢🙂x";
+        assert_eq!([0, 1, 2, 3, 4, 9].map(|n| byte_offset(s, n)), [0, 2, 5, 9, 10, 10]);
+        assert_eq!([0, 2, 3, 5, 10, 99].map(|b| char_offset(s, b)), [0, 1, 1, 2, 4, 4]);
+    }
 
     fn st(t: &str) -> Story {
         Story::with_text(StoryId(1), t, ParaFormat::default())

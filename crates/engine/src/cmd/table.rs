@@ -645,7 +645,7 @@ fn set_cell(s: &mut Session, p: &Value) -> Result<Value> {
         Some(o) => return Err(bad("table.setCell", format!("unknown vj `{o}`"))),
         None => None,
     };
-    let text = str_param(p, "text").map(str::to_string);
+    let text = str_param(p, "text").map(super::paragraphs);
     let stroke = p.get("stroke").cloned();
     edit_table(s, &g, "table.setCell", |t| {
         let owners = t.owners();
@@ -1027,7 +1027,7 @@ fn get(s: &mut Session, p: &Value) -> Result<Value> {
         })
         .collect();
     Ok(json!({
-        "story": g.story.0, "table": g.table, "anchor": st.doc.story(g.story).and_then(|x| x.table_anchor(g.table)),
+        "story": g.story.0, "table": g.table, "anchor": st.doc.story(g.story).and_then(|x| x.table_anchor(g.table).map(|at| designcraft_doc::story::char_offset(&x.text, at))),
         "rows": t.rows, "columns": t.columns, "headerRows": t.header_rows(), "footerRows": t.footer_rows(),
         "cells": cells, "options": t.options, "range": g.range, "style": t.style,
     }))

@@ -142,7 +142,7 @@ pub fn tool_definitions() -> Vec<Value> {
             "inspect_document",
             "Inspect document",
             "Summary of the active document: settings, pages (index, name, bounds, margins, columns), spreads with items (id, kind, \
-             bounds, fill, stroke, story), stories (id, frames, length in UTF-8 bytes, overset, preview), layers, \
+             bounds, fill, stroke, story), stories (id, frames, length in characters, overset: characters that don't fit the frames, preview), layers, \
              paragraph/character styles, swatches, selection, active tool.",
             empty(),
             true,
@@ -150,8 +150,8 @@ pub fn tool_definitions() -> Vec<Value> {
         tool(
             "get_story",
             "Get story",
-            "Full text of a story plus its length, frames, paragraph count, line count and overset position (length and positions \
-             are UTF-8 byte offsets, the unit text.select takes). Identify it by `story` id or by a text `frame` id (default: the \
+            "Full text of a story plus its length in characters, frames, paragraph count, line count and overset (the characters \
+             that don't fit the frames and aren't shown; 0 when all fit). Identify it by `story` id or by a text `frame` id (default: the \
              selection).",
             obj(json!({"story": int("Story id"), "frame": int("Text frame id")}), &[]),
             true,
@@ -159,7 +159,7 @@ pub fn tool_definitions() -> Vec<Value> {
         tool(
             "set_story_text",
             "Set story text",
-            "Replace the whole text of a story (keeps the first paragraph's and character's formatting). Use \\n for paragraph breaks. \
+            "Replace the whole text of a story (keeps the first paragraph's and character's formatting). Use \\n (or \\r) for paragraph breaks. \
              Identify the story by `story` id or by a text `frame` id.",
             obj(json!({"story": int("Story id"), "frame": int("Text frame id"), "text": string("New text")}), &["text"]),
             false,

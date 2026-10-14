@@ -1,6 +1,10 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use designcraft_doc::{Content, Document, Item, ItemId, Selection, SpreadRef};
+use designcraft_compose::Cache;
+use designcraft_doc::story::char_offset;
+use designcraft_doc::{Content, Document, Item, ItemId, Selection, SpreadRef, StoryId};
+use serde_json::Value;
 
 use crate::{DocState, UiRequest};
 
@@ -78,6 +82,46 @@ pub(crate) fn changes(before: Option<(u64, Arc<Document>, Selection)>, after: Op
     };
     said.extend(requests.iter().map(request));
     if said.is_empty() { "nothing changed".into() } else { said.join("; ") }
+}
+
+pub(crate) fn oversets(cache: &Cache, doc: &Document) -> BTreeMap<StoryId, usize> {
+    doc.stories
+        .iter()
+        .filter(|(_, story)| !story.frames.is_empty())
+        .map(|(id, story)| (*id, crate::cmd::overset(story, &cache.get(doc, *id, None))))
+        .collect()
+}
+
+pub(crate) fn overset_warnings(cache: &Cache, old: &Document, before: &BTreeMap<StoryId, usize>, new: &Document) -> Vec<String> {
+    oversets(cache, new)
+        .into_iter()
+        .filter(|(id, n)| {
+            *n > 0
+                && (before.get(id) != Some(n) || !old.stories.get(id).zip(new.stories.get(id)).is_some_and(|(o, s)| Arc::ptr_eq(o, s) || **o == **s))
+        })
+        .map(|(id, n)| {
+            let total = new.stories.get(&id).map_or(n, |s| s.text.chars().count());
+            match n {
+                1 => format!("story {} is overset: 1 character of {total} doesn't fit its frames and isn't shown", id.0),
+                n => format!("story {} is overset: {n} characters of {total} don't fit its frames and aren't shown", id.0),
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn with_warnings(answer: Value, warnings: Vec<String>) -> Value {
+    match answer {
+        Value::Object(mut o) if !warnings.is_empty() => {
+            let mut all = match o.remove("warnings") {
+                Some(Value::Array(had)) => had,
+                _ => vec![],
+            };
+            all.extend(warnings.into_iter().map(Value::from));
+            o.insert("warnings".into(), Value::Array(all));
+            Value::Object(o)
+        }
+        other => other,
+    }
 }
 
 fn top_level(doc: &Document) -> Vec<&Arc<Item>> {
@@ -191,12 +235,23 @@ fn selection(old: &Selection, new: &Selection, doc: &Document) -> Vec<String> {
     }
     if old.text != new.text {
         said.push(match &new.text {
-            Some(t) if t.is_caret() => format!("the caret is in story {} at byte {}", t.story.0, t.focus),
             Some(t) => {
-                let text = doc.story(t.story).and_then(|s| s.text.get(t.range())).unwrap_or_default();
-                let shown: String = text.chars().take(40).collect();
-                let shown = if shown.len() < text.len() { format!("{shown}…") } else { shown };
-                format!("selected bytes {}–{} of story {}, “{}”", t.range().start, t.range().end, t.story.0, shown.replace('\n', "¶"))
+                let story = doc.text_story(t.story, t.cell).map_or("", |s| s.text.as_str());
+                let at = |byte| char_offset(story, byte);
+                if t.is_caret() {
+                    format!("the caret is in story {} at character {}", t.story.0, at(t.focus))
+                } else {
+                    let text = story.get(t.range()).unwrap_or_default();
+                    let shown: String = text.chars().take(40).collect();
+                    let shown = if shown.len() < text.len() { format!("{shown}…") } else { shown };
+                    format!(
+                        "selected characters {}–{} of story {}, “{}”",
+                        at(t.range().start),
+                        at(t.range().end),
+                        t.story.0,
+                        shown.replace('\n', "¶")
+                    )
+                }
             }
             None => "no text is selected".into(),
         });

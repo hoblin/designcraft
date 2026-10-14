@@ -872,3 +872,14 @@ fn facing_pages_merge_tiles_short_blocks_without_stacking() {
     let unique: std::collections::BTreeSet<_> = origins.iter().collect();
     assert_eq!(unique.len(), 3, "no two records may share a page and coordinates: {origins:?}");
 }
+
+#[test]
+fn a_field_goes_in_at_a_character_offset() {
+    let mut s = Session::new();
+    new_doc(&mut s, 1);
+    select_csv(&mut s, "Name\nAda\n");
+    let made = text_frame(&mut s, [36.0, 36.0, 400.0, 80.0], "éx", None);
+    exec(&mut s, "data.placeholder.add", json!({"field": "Name", "story": made["story"], "at": 1}));
+    let story = s.documents()[0].doc.stories.values().next().unwrap();
+    assert_eq!(story.text, "é<<Name>>x");
+}
