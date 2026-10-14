@@ -5,8 +5,8 @@
 //! the JSON value at `path` in the result of step `N` (0-based): after
 //! `frame.create → {"id": 8, "story": 9}`, `{"story": "$0.story"}` passes `9`. Paths are dotted
 //! keys and array indices (`$2.ids.0`). Inside longer strings `${N.path}` is replaced by the
-//! value's text (`"Frame ${0.id}"`). Any other string with a `$` (`"$1"`, `"$1 $2"`, `"$$1"`) is
-//! a plain value, so `find.change`'s groups pass through.
+//! value's text (`"Frame ${0.id}"`). Any other `$` (`"$1"`, `"$1 $2"`, `"$$1"`, `"${1}kg"`) is
+//! plain text, so `find.change`'s groups pass through.
 //!
 //! **Script text** ([`parse`]): a JSON array of steps, JSON lines (`{"command": …, "params": …}`),
 //! or compact lines `command.id {json}` / `command.id={json}` / `command.id`; blank lines and
@@ -90,12 +90,14 @@ fn short(v: &Value) -> String {
     if s.len() > 120 { format!("{}…", &s[..s.floor_char_boundary(120)]) } else { s }
 }
 
-fn reference(s: &str) -> Option<&str> {
-    let r = s.strip_prefix('$')?;
-    let (head, path) = r.split_once('.')?;
+fn is_reference(r: &str) -> bool {
+    let Some((head, path)) = r.split_once('.') else { return false };
     let step = head == "last" || (!head.is_empty() && head.bytes().all(|b| b.is_ascii_digit()));
-    let path = path.split('.').all(|p| !p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '_'));
-    (step && path).then_some(r)
+    step && path.split('.').all(|p| !p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '_'))
+}
+
+fn reference(s: &str) -> Option<&str> {
+    s.strip_prefix('$').filter(|r| is_reference(r))
 }
 
 /// Replace references in `params` with values from earlier `results`.
@@ -111,14 +113,18 @@ pub fn resolve(params: &Value, results: &[Value]) -> Result<Value, String> {
             let mut out = String::new();
             let mut rest = s.as_str();
             while let Some(i) = rest.find("${") {
+                let Some(len) = rest[i..].find('}') else { break };
+                let body = &rest[i + 2..i + len];
                 out.push_str(&rest[..i]);
-                let end = rest[i..].find('}').ok_or_else(|| format!("unclosed `${{` in {s:?}"))? + i;
-                let v = lookup(&rest[i + 2..end], results)?;
-                match v {
-                    Value::String(t) => out.push_str(&t),
-                    other => out.push_str(&other.to_string()),
+                if is_reference(body) {
+                    match lookup(body, results)? {
+                        Value::String(t) => out.push_str(&t),
+                        other => out.push_str(&other.to_string()),
+                    }
+                } else {
+                    out.push_str(&rest[i..=i + len]);
                 }
-                rest = &rest[end + 1..];
+                rest = &rest[i + len + 1..];
             }
             out.push_str(rest);
             Value::String(out)
@@ -197,9 +203,12 @@ mod tests {
     #[test]
     fn a_dollar_that_is_not_a_reference_passes_through() {
         let results = vec![json!({"id": 8})];
-        for change in ["$1", "$last", "$1\u{A0}$2", "$1 $2", "$$1", "$$", "$abc", "$1.", "$1..id", "$1.a-b", "$"] {
+        for change in
+            ["$1", "$last", "$1\u{A0}$2", "$1 $2", "$$1", "$$", "$abc", "$1.", "$1..id", "$1.a-b", "$", "${1}kg", "${amount}", "${1", "${1}${0.id}"]
+        {
             let r = resolve(&json!({"change": change}), &results).unwrap();
-            assert_eq!(r, json!({"change": change}), "{change}");
+            let expected = change.replace("${0.id}", "8");
+            assert_eq!(r, json!({"change": expected}), "{change}");
         }
     }
 

@@ -39,7 +39,7 @@ What else the ids don't say (`designcraft-cli help run` has the full list):
   pass the answered `id` in `ids`.
 - `find.find`, `find.change` and `find.next` with `"grep": true` take a regular expression of Rust's `regex` crate: no
   look-around, no backreferences. In `change`, `$1` is the first group, `$name` a named one and `$$` a dollar sign; a
-  letter right after a group needs `${1}`, which a script reads as a reference, so put a space or the text first.
+  letter right after a group needs `${1}`.
 - A fill or stroke names a swatch. `[Black]`, `[Paper]`, `[None]` and `[Registration]` are built in, brackets included;
   `swatch.create` adds one and answers its name.
 

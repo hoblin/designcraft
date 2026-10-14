@@ -697,6 +697,12 @@ fn a_command_not_available_says_what_makes_it_so() {
         said(&mut s, "select.container", json!({})),
         "command `select.container` is not available right now: nothing selected. Acts on the selected objects. selection.set {\"ids\": […]} selects objects. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text instead, so pass \"caret\": false to select the frame."
     );
+    let states = said(&mut s, "states.list", json!({}));
+    assert!(
+        states.starts_with("command `states.list` is not available right now: nothing selected. Acts on the object in `id`")
+            && !states.contains("pass its id"),
+        "{states}"
+    );
     s.execute("frame.create", &json!({"rect": [0, 0, 10, 10], "content": "text", "text": "Hi"})).unwrap();
     assert!(said(&mut s, "object.fill", json!({"swatch": "[Black]"})).contains("except a text frame"));
     assert_eq!(

@@ -61,7 +61,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Change All",
             ["Edit", "Find/Change"],
             None,
-            "{find, change (with grep, $1 is the first group, $name a named one and $$ a dollar sign; a letter right after a group needs ${1}, which a script reads as a reference, so put a space or the text first), grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?, wholeWord?, scope?, story?, first?: bool (change only the first match), attrs?: {character attributes applied to changed text, as type.char takes them}} → {count}",
+            "{find, change (with grep, $1 is the first group, $name a named one and $$ a dollar sign; a letter right after a group needs ${1}), grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?, wholeWord?, scope?, story?, first?: bool (change only the first match), attrs?: {character attributes applied to changed text, as type.char takes them}} → {count}",
             has_doc,
             change
         ),
@@ -287,12 +287,13 @@ mod tests {
              find.change {\"find\": \"(\\\\d) (\\\\d|%)\", \"change\": \"$1\u{A0}$2\", \"grep\": true}\n\
              find.change {\"find\": \"^(\\\\d+)\", \"change\": \"$$$1\", \"grep\": true}\n\
              find.change {\"find\": \"(and) \", \"change\": \"$1\", \"grep\": true}\n\
+             find.change {\"find\": \"(\\\\d)\\\\s%\", \"change\": \"${1}pct\", \"grep\": true}\n\
              story.get {\"story\": \"$1.story\"}",
         )
         .unwrap();
         let r = s.run_script(&steps);
         assert!(r.failed.is_none(), "{r:?}");
-        assert_eq!(r.results[5]["text"], "$12\u{A0}345 and7\u{A0}%");
+        assert_eq!(r.results[6]["text"], "$12\u{A0}345 and7pct");
     }
 
     #[test]

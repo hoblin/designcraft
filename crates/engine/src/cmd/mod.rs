@@ -148,7 +148,7 @@ pub(crate) fn how_to_enable(cmd: &str, reason: &str) -> String {
         NOTHING_SELECTED => {
             let spec = find_command(cmd);
             let acts = spec.and_then(|c| c.acts_on_for(reason)).map(|a| format!(" {a}")).unwrap_or_default();
-            let by_id = spec.and_then(|c| c.named_target()).map(|n| format!(", or pass its id in `{n}`")).unwrap_or_default();
+            let by_id = if spec.is_some_and(|c| c.named_target() == Some("ids")) { ", or pass its id in `ids`" } else { "" };
             format!("{acts} selection.set {{\"ids\": […]}} selects objects. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text instead, so pass \"caret\": false to select the frame{by_id}.")
         }
         NO_TEXT_POINT => {
