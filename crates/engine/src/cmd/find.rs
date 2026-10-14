@@ -61,7 +61,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Change All",
             ["Edit", "Find/Change"],
             None,
-            "{find, change (with grep, $1 is the first group, $name a named one and $$ a dollar sign), grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?, wholeWord?, scope?, story?, first?: bool (change only the first match), attrs?: {character attributes applied to changed text, as type.char takes them}} → {count}",
+            "{find, change (with grep, $1 is the first group, $name a named one and $$ a dollar sign; a letter right after a group needs ${1}, which a script reads as a reference, so put a space or the text first), grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?, wholeWord?, scope?, story?, first?: bool (change only the first match), attrs?: {character attributes applied to changed text, as type.char takes them}} → {count}",
             has_doc,
             change
         ),
@@ -163,15 +163,15 @@ fn find(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(Value::Array(out))
 }
 
-fn replacement(p: &Value) -> String {
-    let c = str_param(p, "change").unwrap_or("");
-    metachars(c, bool_or(p, "grep", false))
+fn replacement(p: &Value) -> Result<String> {
+    let c = str_param(p, "change").ok_or_else(|| bad("find.change", "`change` must be a string (\"\" deletes the matches)"))?;
+    Ok(metachars(c, bool_or(p, "grep", false)))
 }
 
 fn change(s: &mut Session, p: &Value) -> Result<Value> {
     let re = build(p)?;
     let grep = bool_or(p, "grep", false);
-    let rep = replacement(p);
+    let rep = replacement(p)?;
     let first_only = bool_or(p, "first", false);
     let attrs = p.get("attrs").cloned();
     let mut over = designcraft_doc::CharAttrs::default();
@@ -286,12 +286,23 @@ mod tests {
              frame.create {\"rect\": [36, 36, 300, 300], \"content\": \"text\", \"text\": \"12 345 and 7 %\"}\n\
              find.change {\"find\": \"(\\\\d) (\\\\d|%)\", \"change\": \"$1\u{A0}$2\", \"grep\": true}\n\
              find.change {\"find\": \"^(\\\\d+)\", \"change\": \"$$$1\", \"grep\": true}\n\
+             find.change {\"find\": \"(and) \", \"change\": \"$1\", \"grep\": true}\n\
              story.get {\"story\": \"$1.story\"}",
         )
         .unwrap();
         let r = s.run_script(&steps);
         assert!(r.failed.is_none(), "{r:?}");
-        assert_eq!(r.results[4]["text"], "$12\u{A0}345 and 7\u{A0}%");
+        assert_eq!(r.results[5]["text"], "$12\u{A0}345 and7\u{A0}%");
+    }
+
+    #[test]
+    fn a_change_that_is_not_a_string_is_refused() {
+        let mut s = Session::new();
+        s.execute("file.new", &json!({})).unwrap();
+        s.execute("frame.create", &json!({"rect": [36, 36, 300, 300], "content": "text", "text": "keep"})).unwrap();
+        let e = s.execute("find.change", &json!({"find": "keep", "change": {"id": 8}})).unwrap_err().to_string();
+        assert!(e.contains("`change` must be a string"), "{e}");
+        assert_eq!(s.execute("find.find", &json!({"find": "keep"})).unwrap().as_array().unwrap().len(), 1);
     }
 
     #[test]
@@ -299,10 +310,7 @@ mod tests {
         let mut s = Session::new();
         s.execute("file.new", &json!({})).unwrap();
         let e = s.execute("find.find", &json!({"find": r"(?<=\d) (?=\d)", "grep": true})).unwrap_err().to_string();
-        assert!(
-            e.contains("Rust's regex crate: no look-around") && e.contains("look-around, including look-ahead and look-behind, is not supported"),
-            "{e}"
-        );
+        assert!(e.contains("bad regular expression (Rust's regex crate: no look-around or backreferences): regex parse error"), "{e}");
     }
 }
 

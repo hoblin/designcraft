@@ -1,12 +1,12 @@
 //! Command scripts for agents and shells: a list of `{command, params}` steps where later steps
 //! can use earlier results.
 //!
-//! **References.** A string parameter that is exactly `"$N.path"` (or `"$last.path"`, `"$N"`)
-//! becomes the JSON value at `path` in the result of step `N` (0-based): after
+//! **References.** A string parameter that is exactly `"$N.path"` (or `"$last.path"`) becomes
+//! the JSON value at `path` in the result of step `N` (0-based): after
 //! `frame.create → {"id": 8, "story": 9}`, `{"story": "$0.story"}` passes `9`. Paths are dotted
 //! keys and array indices (`$2.ids.0`). Inside longer strings `${N.path}` is replaced by the
-//! value's text (`"Frame ${0.id}"`). Any other string with a `$` (`"$1 $2"`, `"$$1"`) is a plain
-//! value, so `find.change`'s groups pass through.
+//! value's text (`"Frame ${0.id}"`). Any other string with a `$` (`"$1"`, `"$1 $2"`, `"$$1"`) is
+//! a plain value, so `find.change`'s groups pass through.
 //!
 //! **Script text** ([`parse`]): a JSON array of steps, JSON lines (`{"command": …, "params": …}`),
 //! or compact lines `command.id {json}` / `command.id={json}` / `command.id`; blank lines and
@@ -92,10 +92,9 @@ fn short(v: &Value) -> String {
 
 fn reference(s: &str) -> Option<&str> {
     let r = s.strip_prefix('$')?;
-    let mut parts = r.split('.');
-    let head = parts.next()?;
+    let (head, path) = r.split_once('.')?;
     let step = head == "last" || (!head.is_empty() && head.bytes().all(|b| b.is_ascii_digit()));
-    let path = parts.all(|p| !p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '_'));
+    let path = path.split('.').all(|p| !p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '_'));
     (step && path).then_some(r)
 }
 
@@ -187,9 +186,9 @@ mod tests {
     #[test]
     fn resolves_references() {
         let results = vec![json!({"id": 8, "story": 9, "ids": [4, 5]}), json!({"name": "A"})];
-        let p = json!({"story": "$0.story", "id": "$0.ids.1", "whole": "$1", "last": "$last.name", "label": "Frame ${0.id} of ${last.name}", "keep": "$", "list": ["$1.name"]});
+        let p = json!({"story": "$0.story", "id": "$0.ids.1", "last": "$last.name", "label": "Frame ${0.id} of ${last.name}", "keep": "$", "list": ["$1.name"]});
         let r = resolve(&p, &results).unwrap();
-        assert_eq!(r, json!({"story": 9, "id": 5, "whole": {"name": "A"}, "last": "A", "label": "Frame 8 of A", "keep": "$", "list": ["A"]}));
+        assert_eq!(r, json!({"story": 9, "id": 5, "last": "A", "label": "Frame 8 of A", "keep": "$", "list": ["A"]}));
         assert!(resolve(&json!({"x": "$5.id"}), &results).unwrap_err().contains("hasn't run"));
         assert!(resolve(&json!({"x": "$0.nope"}), &results).unwrap_err().contains("no `nope`"));
         assert!(resolve(&json!({"x": "$last.id"}), &[]).unwrap_err().contains("before any step"));
@@ -198,7 +197,7 @@ mod tests {
     #[test]
     fn a_dollar_that_is_not_a_reference_passes_through() {
         let results = vec![json!({"id": 8})];
-        for change in ["$1\u{A0}$2", "$1 $2", "$$1", "$$", "$abc", "$1.", "$1..id", "$1.a-b", "$"] {
+        for change in ["$1", "$last", "$1\u{A0}$2", "$1 $2", "$$1", "$$", "$abc", "$1.", "$1..id", "$1.a-b", "$"] {
             let r = resolve(&json!({"change": change}), &results).unwrap();
             assert_eq!(r, json!({"change": change}), "{change}");
         }

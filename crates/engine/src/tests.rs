@@ -691,17 +691,17 @@ fn a_command_not_available_says_what_makes_it_so() {
     );
     assert_eq!(
         said(&mut s, "object.fill", json!({"swatch": "Black"})),
-        "command `object.fill` is not available right now: nothing selected. Acts on the objects in `ids`, else on the selected objects. selection.set {\"ids\": […]} selects objects. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text instead, so pass \"caret\": false to select the frame, or its id in `ids`."
+        "command `object.fill` is not available right now: nothing selected. Acts on the objects in `ids`, else on the selected objects. selection.set {\"ids\": […]} selects objects. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text instead, so pass \"caret\": false to select the frame, or pass its id in `ids`."
     );
     assert_eq!(
         said(&mut s, "select.container", json!({})),
-        "command `select.container` is not available right now: nothing selected. Acts on the selected objects. selection.set {\"ids\": […]} selects objects. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text instead, so pass \"caret\": false to select the frame, or its id in `ids`."
+        "command `select.container` is not available right now: nothing selected. Acts on the selected objects. selection.set {\"ids\": […]} selects objects. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text instead, so pass \"caret\": false to select the frame."
     );
     s.execute("frame.create", &json!({"rect": [0, 0, 10, 10], "content": "text", "text": "Hi"})).unwrap();
     assert!(said(&mut s, "object.fill", json!({"swatch": "[Black]"})).contains("except a text frame"));
     assert_eq!(
         said(&mut s, "style.paragraph.create", json!({"name": "Body", "chars": {"fill": "Black"}})),
-        "invalid parameters for `style.paragraph.create`: unknown character fill `Black` (did you mean `[Black]`?); the built-in swatches are [Black], [Paper], [None] and [Registration], brackets included; swatch.create adds one and answers its name. `style.paragraph.create` takes {name, basedOn?, nextStyle?, para?: {…}, chars?: {…}, fromSelection?: bool}."
+        "invalid parameters for `style.paragraph.create`: unknown character fill `Black` (did you mean `[Black]`?); the built-in swatches are [Black], [Paper], [None] and [Registration], brackets included; swatch.create adds one and answers its name. `style.paragraph.create` takes {name, basedOn?, nextStyle?, para?: {…}, chars?: {… as type.char takes them}, fromSelection?: bool}."
     );
     for c in command_specs() {
         let Some(acts) = c.acts_on() else { continue };

@@ -14,7 +14,6 @@ use serde_json::{Value, json};
 use super::{CommandSpec, bad, bool_or, cmd, f64_or, has_doc, has_selection, ok, point_param, rect_param, spread_param, str_param, targets};
 use crate::{Result, Session};
 
-/// `name` must be a swatch of the document: an unknown name would paint nothing.
 fn known_swatch(doc: &designcraft_doc::Document, name: &str, cmd: &str, key: &str) -> Result<()> {
     if doc.swatch(name).is_some() {
         return Ok(());

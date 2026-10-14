@@ -146,8 +146,10 @@ pub(crate) fn how_to_enable(cmd: &str, reason: &str) -> String {
     match reason {
         NO_DOCUMENT => " file.new or file.open opens one.".into(),
         NOTHING_SELECTED => {
-            let acts = find_command(cmd).and_then(|c| c.acts_on_for(reason)).map(|a| format!(" {a}")).unwrap_or_default();
-            format!("{acts} selection.set {{\"ids\": […]}} selects objects. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text instead, so pass \"caret\": false to select the frame, or its id in `ids`.")
+            let spec = find_command(cmd);
+            let acts = spec.and_then(|c| c.acts_on_for(reason)).map(|a| format!(" {a}")).unwrap_or_default();
+            let by_id = spec.and_then(|c| c.named_target()).map(|n| format!(", or pass its id in `{n}`")).unwrap_or_default();
+            format!("{acts} selection.set {{\"ids\": […]}} selects objects. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text instead, so pass \"caret\": false to select the frame{by_id}.")
         }
         NO_TEXT_POINT => {
             " text.select {\"story\": …, \"anchor\": 0, \"focus\": 0} puts the caret in a story; frame.create with \"content\": \"text\" puts it in the new frame."
@@ -165,15 +167,19 @@ impl CommandSpec {
         self.acts_on_for(&(self.enabled)(&Session::with_new()).err()?)
     }
 
-    pub(crate) fn acts_on_for(&self, reason: &str) -> Option<String> {
+    fn named_target(&self) -> Option<&'static str> {
         let keys = param_keys(self.params).unwrap_or_default();
-        let named = if keys.contains(&"ids") {
-            Some("the objects in `ids`")
+        if keys.contains(&"ids") {
+            Some("ids")
         } else if keys.contains(&"id") {
-            Some("the object in `id`")
+            Some("id")
         } else {
             None
-        };
+        }
+    }
+
+    pub(crate) fn acts_on_for(&self, reason: &str) -> Option<String> {
+        let named = self.named_target().map(|n| if n == "ids" { "the objects in `ids`" } else { "the object in `id`" });
         Some(match (reason, named) {
             (NOTHING_SELECTED, Some(n)) => format!("Acts on {n}, else on the selected objects."),
             (NOTHING_SELECTED, None) => "Acts on the selected objects.".into(),

@@ -47,8 +47,10 @@ What the ids don't say:
   passes 9. Inside a longer string, \"${N.key}\" is replaced by the value's text. Only those exact
   forms are references; any other string with a $ is passed as written, so \"$1 $2\" reaches
   find.change as written.
-- find.find and find.change with \"grep\": true take a regular expression of Rust's regex crate: no
-  look-around, no backreferences. In change, $1 is the first group, $name a named one, $$ a dollar sign.
+- find.find, find.change and find.next with \"grep\": true take a regular expression of Rust's regex
+  crate: no look-around, no backreferences. In change, $1 is the first group, $name a named one, $$ a
+  dollar sign; a letter right after a group needs ${1}, which run reads as a reference, so put a
+  space or the text first.
 - A fill or stroke names a swatch; [Black], [Paper], [None] and [Registration] are built in, brackets
   included, and swatch.create adds one, answering its name.
 
