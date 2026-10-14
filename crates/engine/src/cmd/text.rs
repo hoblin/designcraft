@@ -126,7 +126,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Character Formatting",
             [],
             None,
-            "{attrs: {fontFamily?: family name (font.list shows which are missing), fontStyle?: Regular|Bold|Italic|…, size?: pt, leading?: {kind:auto}|{kind:points,value}, tracking?, kerning?, hScale?, vScale?, baselineShift?, fill?, capitalization?, underline?, …}} | {size?, fill?, …: the same attributes at the top level}",
+            "{attrs: {fontFamily?: family name (font.list shows which are missing), fontStyle?: Regular|Bold|Italic|…, size?: pt, leading?: {kind:auto}|{kind:points,value}, tracking?, kerning?, hScale?, vScale?, baselineShift?, fill?: a swatch's name ([Black], [Paper], [None] and [Registration] are built in, swatch.create adds one), capitalization?, underline?, …}} | {size?, fill?, …: the same attributes at the top level}",
             has_text_or_frames,
             |s, p| format_chars(s, p.get("attrs").unwrap_or(p))
         ),
@@ -823,10 +823,7 @@ pub(crate) fn validate_char_fill(document: &designcraft_doc::Document, attrs: &C
     if let Some(fill) = &attrs.fill
         && document.swatch(fill).is_none()
     {
-        return Err(bad(
-            command_id,
-            format!("unknown character fill `{fill}`; create a swatch with `swatch.create` and use its returned name as `fill`"),
-        ));
+        return Err(bad(command_id, format!("unknown character fill `{fill}`{}", super::swatch_hint(document, fill))));
     }
     Ok(())
 }

@@ -24,8 +24,11 @@ is a command: find ids and parameters with list_commands and run them with execu
 flow: new_document → execute frame.create {rect:[x0,y0,x1,y1], content:\"text\", text:\"…\"} → set_story_text / \
 execute type.char / style.paragraph.apply → render_page to look at the result. inspect_document lists pages, items \
 (ids, bounds), stories (overset) and styles. place_image puts a picture on the page. Object ids are unique in the \
-document. frame.create selects the frame it creates and, with content \"text\", puts the caret in it; a command \
-whose parameters list `ids` acts on those objects, else on the selected ones (selection.set {ids:[…]} selects). \
+document. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text and \
+leaves the frame unselected (caret:false selects the frame instead); a command whose parameters list `ids` acts on \
+those objects, else on the selected ones (selection.set {ids:[…]} selects). A parameter string is a reference only \
+in the exact form \"$N.key\" or \"$last.key\", and \"${N.key}\" inside a longer string; any other $ is passed as \
+written, so find.change's change can use $1. The built-in swatches are [Black], [Paper], [None] and [Registration], brackets included. \
 Parameters a command doesn't take are refused, naming the ones it does; a command with no answer of its own says \
 what it changed.";
 
