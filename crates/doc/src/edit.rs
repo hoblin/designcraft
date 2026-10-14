@@ -373,7 +373,7 @@ impl Document {
         let st = self.story(sid)?;
         Some(serde_json::json!({
             "id": sid.0,
-            "length": st.text.len(),
+            "length": st.text.chars().count(),
             "direction": st.direction,
             "paragraphs": st.paras.len(),
             "frames": st.frames.iter().map(|f| f.0).collect::<Vec<_>>(),

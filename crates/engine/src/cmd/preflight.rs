@@ -86,7 +86,7 @@ pub fn check(s: &Session, min_ppi: f64) -> Vec<Issue> {
         if cs.is_overset() {
             let last = story.frames.last().copied();
             let page = last.and_then(|f| d.find(f).zip(d.item(f))).and_then(|(loc, it)| page_of(d, loc.spread, it));
-            let n = story.text[cs.overset_at.unwrap_or(0).min(story.len())..].chars().count();
+            let n = super::overset(story, &cs);
             out.push(Issue { severity: "error", kind: "overset", message: format!("Overset text: {n} characters"), item: last.map(|i| i.0), page });
         }
         let ranges = story.para_ranges();

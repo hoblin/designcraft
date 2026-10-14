@@ -424,31 +424,36 @@ impl Session {
     /// Run command `id` for a caller outside the app (the CLI, MCP, the control channel): parameters
     /// the command doesn't take are refused, and a command with no answer of its own, or only a
     /// count of changed objects, answers with what it changed, as a sentence (`changed text frame 8
-    /// on page 1`, `nothing changed`). A font family or style the command put in use that isn't
-    /// installed is named after a `;` in that sentence.
+    /// on page 1`, `nothing changed`). Warnings follow after a `;` in that sentence, or in
+    /// `warnings` of an object answer: a font family or style the command put in use that isn't
+    /// installed, and a story the command left overset.
     pub fn call(&mut self, id: &str, params: &Value) -> Result<Value> {
         let spec = find_command(id).ok_or_else(|| EngineError::UnknownCommand(id.into()))?;
         cmd::check_params(spec, params)?;
         let before = self.active().map(|d| (d.uid, d.doc.clone(), d.selection.clone()));
+        let overset_before = match (spec.undoable, &before) {
+            (true, Some((_, doc, _))) => describe::oversets(&self.cache, doc),
+            _ => Default::default(),
+        };
         let asked = self.ui_requests.len();
         let r = self.execute(id, params)?;
-        let bare_count = r.as_object().is_some_and(|o| o.len() == 1 && o.get("changed").is_some_and(Value::is_number));
-        if !r.is_null() && !bare_count {
-            return Ok(r);
-        }
-        let newly_missing: Vec<String> = match (&before, self.active()) {
+        let warnings: Vec<String> = match (&before, self.active()) {
             (Some((uid, old, _)), Some(d)) if *uid == d.uid && !Arc::ptr_eq(old, &d.doc) => {
                 let was = cmd::fonts::missing(old);
-                cmd::fonts::missing(&d.doc)
+                let fonts = cmd::fonts::missing(&d.doc)
                     .into_iter()
                     .filter(|f| !was.contains(f))
-                    .map(|(fam, st)| cmd::fonts::not_installed(&d.doc, &fam, &st))
-                    .collect()
+                    .map(|(fam, st)| cmd::fonts::not_installed(&d.doc, &fam, &st));
+                fonts.chain(describe::newly_overset(&self.cache, old, &overset_before, &d.doc)).collect()
             }
             _ => vec![],
         };
+        let bare_count = r.as_object().is_some_and(|o| o.len() == 1 && o.get("changed").is_some_and(Value::is_number));
+        if !r.is_null() && !bare_count {
+            return Ok(describe::with_warnings(r, warnings));
+        }
         let mut said = describe::changes(before, self.active(), self.ui_requests.get(asked..).unwrap_or_default());
-        for warning in newly_missing {
+        for warning in warnings {
             said.push_str("; ");
             said.push_str(&warning);
         }

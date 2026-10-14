@@ -3,7 +3,7 @@
 use designcraft_doc::{CellAddr, FootnoteOptions, ParaFormat, StoryId, TextSel};
 use serde_json::{Value, json};
 
-use super::{CommandSpec, bad, cmd, has_doc, str_param};
+use super::{CommandSpec, bad, cmd, has_doc};
 use crate::{Result, Session};
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -58,7 +58,7 @@ fn in_note(s: &Session) -> std::result::Result<(), String> {
 }
 
 fn insert(s: &mut Session, p: &Value) -> Result<Value> {
-    let text = str_param(p, "text").unwrap_or("").to_string();
+    let text = super::text_param(p, "text");
     s.edit(|d, sel| {
         let t = sel.text.ok_or_else(|| bad("footnote.insert", "no insertion point"))?;
         let para = ParaFormat { style: d.footnote_options.para_style.clone(), ..Default::default() };
@@ -130,7 +130,7 @@ fn list(s: &mut Session, p: &Value) -> Result<Value> {
 fn set_text(s: &mut Session, p: &Value) -> Result<Value> {
     let sid = story_id(p, "footnote.setText")?;
     let id = note_id(p, "footnote.setText")?;
-    let text = str_param(p, "text").unwrap_or("").to_string();
+    let text = super::text_param(p, "text");
     s.edit(|d, _| {
         let st = d.story_mut(sid).ok_or(designcraft_doc::DocError::NoStory(sid))?;
         let n = st.note_mut(id).ok_or_else(|| bad("footnote.setText", format!("no footnote {id}")))?;
@@ -162,7 +162,7 @@ fn go_to_reference(s: &mut Session, _: &Value) -> Result<Value> {
     let pos = at + designcraft_doc::FOOTNOTE_REF.len_utf8();
     st.selection.text = Some(TextSel { anchor: pos, focus: pos, cell: None, ..t });
     st.revision += 1;
-    Ok(json!({"story": t.story.0, "pos": pos}))
+    Ok(json!({"story": t.story.0, "pos": st.doc.story(t.story).map_or(0, |x| designcraft_doc::story::char_offset(&x.text, pos))}))
 }
 
 #[cfg(test)]
@@ -195,7 +195,7 @@ mod tests {
         assert_eq!(cs.frames[0].notes.len(), 1);
         // Back to the reference.
         let r = s.execute("footnote.goToReference", &json!({})).unwrap();
-        assert_eq!(r["pos"], json!(16 + designcraft_doc::FOOTNOTE_REF.len_utf8()));
+        assert_eq!(r["pos"], json!(17));
         // Listing, editing, options.
         let l = s.execute("footnote.list", &json!({})).unwrap();
         assert_eq!(l[0]["text"], "A source.");

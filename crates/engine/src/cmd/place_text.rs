@@ -231,7 +231,8 @@ pub(super) fn place_text(s: &mut Session, p: &Value, name: &str, bytes: &[u8]) -
             sid
         };
         let pages = if autoflow_on { autoflow(d, sid, 2000)? } else { 0 };
-        let overset = fit(d, sid).0.is_some();
+        let cs = designcraft_compose::compose_story(d, sid, &Default::default());
+        let overset = d.story(sid).map_or(0, |story| super::overset(story, &cs));
         Ok(json!({"story": sid.0, "pagesAdded": pages, "overset": overset, "warnings": warnings}))
     })
 }
@@ -251,7 +252,7 @@ mod tests {
         s.execute("file.new", &json!({"pages": 1})).unwrap();
         let r = s.execute("file.place", &json!({"path": path.to_string_lossy(), "autoflow": true})).unwrap();
         assert!(r["pagesAdded"].as_u64().unwrap() >= 2, "{r}");
-        assert_eq!(r["overset"], false);
+        assert_eq!(r["overset"], 0);
         let d = &s.doc().unwrap().doc;
         let sid = StoryId(r["story"].as_u64().unwrap());
         assert_eq!(d.story(sid).unwrap().frames.len(), d.page_count());
@@ -284,7 +285,7 @@ mod tests {
             let mut s = Session::new();
             s.execute("file.new", &json!({"pages": 1})).unwrap();
             let r = s.execute("file.place", &json!({"path": path.to_string_lossy(), "autoflow": true})).unwrap();
-            assert_eq!(r["overset"], false, "{name}: {r}");
+            assert_eq!(r["overset"], 0, "{name}: {r}");
             let d = &s.doc().unwrap().doc;
             assert_eq!(d.page_count(), pages, "{name}: {r}");
             assert_eq!(d.story(StoryId(r["story"].as_u64().unwrap())).unwrap().frames.len(), pages, "{name}");

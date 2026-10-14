@@ -72,17 +72,7 @@ fn main() -> ExitCode {
         }
         Some("run") => report(run(rest)),
         Some("commands") => {
-            let filter = args.get(1).map(|f| f.to_lowercase());
-            for c in designcraft_engine::command_specs() {
-                let text = format!("{} {} {}", c.id, c.label, c.menu.join(" ")).to_lowercase();
-                if filter.as_ref().is_some_and(|f| !text.contains(f.as_str())) {
-                    continue;
-                }
-                match c.params.strip_prefix("{}") {
-                    Some(answer) => outln!("{} — {}{answer}", c.id, c.label),
-                    None => outln!("{} — {}: {}", c.id, c.label, c.params),
-                }
-            }
+            commands(args.get(1).map(|f| f.to_lowercase()));
             ExitCode::SUCCESS
         }
         Some("describe") => report(describe(args.get(1).map(String::as_str))),
@@ -347,6 +337,12 @@ fn run(args: &[String]) -> Result<(), String> {
             other => return Err(format!("run was given `{other}`, which it doesn't take. {RUN_TAKES}")),
         }
     }
+    if let Some(st) = s.active().filter(|st| st.is_dirty() && st.doc != st.saved_doc) {
+        let to = st.path.as_deref().unwrap_or("FILE.designcraft");
+        eprintln!(
+            "not saved: this run changed the document and wrote no .designcraft after the change, so the changes are gone; end the run with --export {to} to keep them"
+        );
+    }
     Ok(())
 }
 
@@ -371,6 +367,37 @@ fn export(s: &mut Session, out: &str, page: usize, scale: f64) -> Result<(), Str
     designcraft_engine::atomic::write_atomic(std::path::Path::new(out), &bytes).map_err(|e| format!("{out}: {e}"))?;
     eprintln!("wrote {out} ({}×{}, {:.1} ms, {} glyphs)", img.width, img.height, t.elapsed().as_secs_f64() * 1000.0, r.stats.glyphs);
     Ok(())
+}
+
+fn commands(filter: Option<String>) {
+    let mut areas: Vec<(&str, Vec<&designcraft_engine::cmd::CommandSpec>)> = Vec::new();
+    for c in designcraft_engine::command_specs() {
+        let text = format!("{} {} {}", c.id, c.label, c.menu.join(" ")).to_lowercase();
+        if filter.as_ref().is_some_and(|f| !text.contains(f.as_str())) {
+            continue;
+        }
+        let area = c.id.split_once('.').map_or(c.id, |(a, _)| a);
+        match areas.iter_mut().find(|(a, _)| *a == area) {
+            Some((_, list)) => list.push(c),
+            None => areas.push((area, vec![c])),
+        }
+    }
+    let grouped = areas.len() > 1;
+    if grouped {
+        let index: Vec<String> = areas.iter().map(|(a, list)| format!("{a} ({})", list.len())).collect();
+        outln!("{} areas (`designcraft-cli commands AREA.` lists one): {}", areas.len(), index.join(", "));
+    }
+    for (area, list) in &areas {
+        if grouped {
+            outln!("\n{area}");
+        }
+        for c in list {
+            match c.params.strip_prefix("{}") {
+                Some(answer) => outln!("{} — {}{answer}", c.id, c.label),
+                None => outln!("{} — {}: {}", c.id, c.label, c.params),
+            }
+        }
+    }
 }
 
 fn describe(id: Option<&str>) -> Result<(), String> {

@@ -1,6 +1,7 @@
 //! Edit → Find/Change: plain text and GREP (regular expressions) with InDesign's metacharacters,
 //! optional formatting in the change, scoped to the document, a story or the selection.
 
+use designcraft_doc::story::char_offset;
 use designcraft_doc::{StoryId, TextSel, story};
 use serde_json::{Value, json};
 
@@ -54,14 +55,14 @@ pub fn specs() -> Vec<CommandSpec> {
             }
         ),
         cmd!(query "find.find", "Find", ["Edit", "Find/Change"], None,
-            "{find, grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?: bool, wholeWord?: bool, scope?: document|story|selection, story?} → matches [{story, start, end, text}]",
+            "{find, grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?: bool, wholeWord?: bool, scope?: document|story|selection, story?} → matches [{story, start, end (character offsets, as text.select takes them), text}]",
             has_doc, find),
         cmd!(
             "find.change",
             "Change All",
             ["Edit", "Find/Change"],
             None,
-            "{find, change (with grep, $1 is the first group, $name a named one and $$ a dollar sign; a letter right after a group needs ${1}), grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?, wholeWord?, scope?, story?, first?: bool (change only the first match), attrs?: {character attributes applied to changed text, as type.char takes them}} → {count}",
+            "{find, change (with grep, $1 is the first group, $name a named one and $$ a dollar sign; a letter right after a group needs ${1}), grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?, wholeWord?, scope?, story?, first?: bool (change only the first match), attrs?: {character attributes applied to changed text, as type.char takes them}} — every story unless scope or story narrows it → {count: matches changed, stories: the ids of the stories they were in}",
             has_doc,
             change
         ),
@@ -114,7 +115,8 @@ fn build(p: &Value) -> Result<regex::Regex> {
         return Err(bad("find", "empty search"));
     }
     let grep = bool_or(p, "grep", false);
-    let mut pat = if grep { metachars(f, true) } else { regex::escape(&metachars(f, false)) };
+    let f = super::paragraphs(f);
+    let mut pat = if grep { metachars(&f, true) } else { regex::escape(&metachars(&f, false)) };
     if bool_or(p, "wholeWord", false) {
         pat = format!(r"\b(?:{pat})\b");
     }
@@ -152,9 +154,15 @@ fn find(s: &mut Session, p: &Value) -> Result<Value> {
     let mut out = Vec::new();
     for (sid, r) in scope(s, p)? {
         let Some(story) = st.doc.story(sid) else { continue };
-        let text = &story.text[r.clone()];
+        let Some(text) = story.text.get(r.clone()) else { continue };
+        let mut counted = (0, char_offset(&story.text, r.start));
+        let mut chars = |byte: usize| {
+            counted = (byte, counted.1 + text.get(counted.0..byte).map_or(0, |t| t.chars().count()));
+            counted.1
+        };
         for m in re.find_iter(text) {
-            out.push(json!({"story": sid.0, "start": r.start + m.start(), "end": r.start + m.end(), "text": m.as_str()}));
+            let (start, end) = (chars(m.start()), chars(m.end()));
+            out.push(json!({"story": sid.0, "start": start, "end": end, "text": m.as_str()}));
             if out.len() >= 10_000 {
                 break;
             }
@@ -165,7 +173,7 @@ fn find(s: &mut Session, p: &Value) -> Result<Value> {
 
 fn replacement(p: &Value) -> Result<String> {
     let c = str_param(p, "change").ok_or_else(|| bad("find.change", "`change` must be a string (\"\" deletes the matches)"))?;
-    Ok(metachars(c, bool_or(p, "grep", false)))
+    Ok(metachars(&super::paragraphs(c), bool_or(p, "grep", false)))
 }
 
 fn change(s: &mut Session, p: &Value) -> Result<Value> {
@@ -184,10 +192,14 @@ fn change(s: &mut Session, p: &Value) -> Result<Value> {
     let targets = scope(s, p)?;
     s.edit(|d, sel| {
         let mut count = 0usize;
+        let mut changed = Vec::new();
         for (sid, r) in targets {
+            if first_only && count > 0 {
+                break;
+            }
             let Some(story) = d.story(sid) else { continue };
             // Collect matches first (positions refer to the original text), apply back to front.
-            let text = story.text[r.clone()].to_string();
+            let Some(text) = story.text.get(r.clone()).map(str::to_string) else { continue };
             let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
             for caps in re.captures_iter(&text) {
                 let Some(m) = caps.get(0) else { continue };
@@ -202,7 +214,11 @@ fn change(s: &mut Session, p: &Value) -> Result<Value> {
                     break;
                 }
             }
+            if edits.is_empty() {
+                continue;
+            }
             let Some(st) = d.story_mut(sid) else { continue };
+            changed.push(sid.0);
             for (range, new) in edits.iter().rev() {
                 st.replace(range.clone(), new);
                 if !over.is_empty() && !new.is_empty() {
@@ -216,7 +232,7 @@ fn change(s: &mut Session, p: &Value) -> Result<Value> {
                 t.focus = t.focus.min(len);
             }
         }
-        Ok(json!({"count": count}))
+        Ok(json!({"count": count, "stories": changed}))
     })
 }
 
@@ -245,7 +261,8 @@ fn find_next(s: &mut Session, p: &Value) -> Result<Value> {
     stm.selection = designcraft_doc::Selection::text(TextSel { story: sid, anchor: a, focus: b, frame, cell: None });
     stm.revision += 1;
     let _ = story::PAGE_NUMBER;
-    Ok(json!({"story": sid.0, "start": a, "end": b}))
+    let text = stm.doc.story(sid).map_or("", |x| x.text.as_str());
+    Ok(json!({"story": sid.0, "start": char_offset(text, a), "end": char_offset(text, b)}))
 }
 
 #[cfg(test)]

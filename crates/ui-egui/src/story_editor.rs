@@ -60,7 +60,11 @@ pub fn show(app: &mut DesignApp, ctx: &egui::Context) {
                         let suf = old.bytes().rev().zip(text.bytes().rev()).take(max_suf).take_while(|(a, b)| a == b).count();
                         let suf =
                             (0..=suf).rev().find(|&k| old.is_char_boundary(old.len() - k) && text.is_char_boundary(text.len() - k)).unwrap_or(0);
-                        edit = Some((pre, old.len() - suf, text[pre..text.len() - suf].to_string()));
+                        edit = Some((
+                            designcraft_doc::story::char_offset(old, pre),
+                            designcraft_doc::story::char_offset(old, old.len() - suf),
+                            text[pre..text.len() - suf].to_string(),
+                        ));
                     }
                 });
                 if let Some(o) = overset {

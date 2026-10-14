@@ -102,7 +102,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Place…",
             ["File"],
             Some("Cmd+D"),
-            "{path? | base64?: string, name?, frame?: id (place into), spread?, x?, y?, width?, pdfPage?: n (1-based, Image Import Options), pdfCrop?: crop|trim|bleed|art|media, layoutPage?: n (IDML / .designcraft: that page's objects as a group), height?: pt (video or sound: the frame's height), page?: index (text: the page of the new frame), rect?: [x0,y0,x1,y1] (text: the new frame), autoflow?: bool (text: adds pages with threaded frames until it fits), removeStyles?: bool, styleMap?: {imported name: document style}, styleConflicts?: useExisting|redefine|autoRename} — places an image into the selected empty frame if any, else a new frame; text files (.txt, .docx, .rtf, .md) and Excel workbooks (.xlsx, as a table) go into the insertion point, the selected frame or a new frame on `page`/`rect`",
+            "{path? | base64?: string, name?, frame?: id (place into, replacing what it holds), spread?, x?, y?, width?, pdfPage?: n (1-based, Image Import Options), pdfCrop?: crop|trim|bleed|art|media, layoutPage?: n (IDML / .designcraft: that page's objects as a group), height?: pt (video or sound: the frame's height), page?: index (text: the page of the new frame), rect?: [x0,y0,x1,y1] (text: the new frame), autoflow?: bool (text: adds pages with threaded frames until it fits), removeStyles?: bool, styleMap?: {imported name: document style}, styleConflicts?: useExisting|redefine|autoRename} — places an image into the selected empty frame if any, else a new frame (a selected frame that holds an image keeps it: name it as `frame` to replace it); text files (.txt, .docx, .rtf, .md) and Excel workbooks (.xlsx, as a table) go into the insertion point, the selected frame or a new frame on `page`/`rect`",
             has_doc,
             file_place
         ),
@@ -331,10 +331,13 @@ fn file_place(s: &mut Session, p: &Value) -> Result<Value> {
         Some(_) => None,
         None => None,
     };
-    let target_frame = super::id_param(p, "frame").or_else(|| {
-        let st = s.active()?;
-        st.selection.items.iter().copied().find(|i| st.doc.item(*i).is_some_and(|it| matches!(it.content, Content::Unassigned | Content::Graphic(_))))
-    });
+    let target_frame =
+        super::id_param(p, "frame").or_else(|| {
+            let st = s.active()?;
+            st.selection.items.iter().copied().find(|i| {
+                st.doc.item(*i).is_some_and(|it| matches!(it.content, Content::Unassigned) && it.shape != designcraft_doc::Shape::GraphicLine)
+            })
+        });
     let spread = super::spread_param(p, "spread");
     let lid = s.doc()?.active_layer;
     let px = p.get("x").and_then(Value::as_f64);
@@ -988,5 +991,28 @@ mod document_fonts_tests {
         assert_eq!(font_entry(&mut s, FAMILY)["source"], "document");
         assert!(glyph_faces(&s).iter().all(|(_, f)| f.family == FAMILY));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod image_place_tests {
+    use designcraft_doc::{Content, ItemId};
+    use serde_json::{Value, json};
+
+    use crate::Session;
+
+    #[test]
+    fn an_image_fills_an_empty_selected_frame_and_leaves_a_placed_image_alone() {
+        let mut s = Session::with_new();
+        let png = designcraft_render::Rendered { width: 40, height: 20, pixels: vec![200; 40 * 20 * 4] }.to_png();
+        let image = json!({"base64": super::base64_encode(&png), "name": "logo.png"});
+        let empty = s.execute("frame.create", &json!({"rect": [36, 36, 136, 136]})).unwrap()["id"].clone();
+        s.execute("selection.set", &json!({"ids": [empty]})).unwrap();
+        assert_eq!(s.execute("file.place", &image).unwrap()["id"], empty);
+        let second = s.execute("file.place", &image).unwrap()["id"].clone();
+        assert_ne!(second, empty);
+        let holds_image =
+            |s: &Session, id: &Value| matches!(s.doc().unwrap().doc.item(ItemId(id.as_u64().unwrap())).unwrap().content, Content::Graphic(_));
+        assert!(holds_image(&s, &empty) && holds_image(&s, &second));
     }
 }

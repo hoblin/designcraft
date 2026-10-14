@@ -8,7 +8,7 @@ use crate::{Result, Session};
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-        cmd!(query "document.inspect", "Inspect Document", [], None, "{} → pages, spreads, items, stories (with overset), styles, swatches, selection", has_doc, inspect),
+        cmd!(query "document.inspect", "Inspect Document", [], None, "{} → pages, spreads, items, stories (length in characters; overset: the characters that don't fit the frames, 0 when all fit), styles, swatches, selection", has_doc, inspect),
         cmd!(query "app.links", "Community & Project Links", [], None,
             "{} → {discord, website, appPage, github, issues} (ArtCraft Discord, website, DesignCraft page and repository)", always, |_, _| Ok(crate::links::all())),
         cmd!(query "document.list", "List Documents", [], None, "{}", always, |s, _| {
@@ -84,8 +84,8 @@ fn inspect(s: &mut Session, _p: &Value) -> Result<Value> {
         .map(|story| {
             let cs = s.cache.get(d, story.id, None);
             let preview: String = story.text.chars().take(80).collect();
-            json!({"id": story.id.0, "frames": story.frames.iter().map(|f| f.0).collect::<Vec<_>>(), "length": story.len(), "paragraphs": story.paras.len(),
-                "overset": cs.overset_at.is_some(), "lines": cs.line_count(), "preview": preview})
+            json!({"id": story.id.0, "frames": story.frames.iter().map(|f| f.0).collect::<Vec<_>>(), "length": story.text.chars().count(), "paragraphs": story.paras.len(),
+                "overset": super::overset(story, &cs), "lines": cs.line_count(), "preview": preview})
         })
         .collect();
     Ok(json!({

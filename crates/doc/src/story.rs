@@ -523,6 +523,14 @@ pub fn floor_char_boundary(s: &str, mut i: usize) -> usize {
     i
 }
 
+pub fn char_offset(s: &str, byte: usize) -> usize {
+    s.get(..floor_char_boundary(s, byte)).map_or(0, |head| head.chars().count())
+}
+
+pub fn byte_offset(s: &str, chars: usize) -> usize {
+    s.char_indices().nth(chars).map_or(s.len(), |(i, _)| i)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

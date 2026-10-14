@@ -130,7 +130,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Transform Panel",
             [],
             None,
-            "{x?, y?, width?, height?, scaleX? (%), scaleY? (%), rotation? (°), shear? (°), ref?: 0..8, ids?} — reference-point based geometry; rotation and shear are absolute (Transformations are Totals decides whether nested objects measure them on the pasteboard)",
+            "{x?, y?, width?, height?, scaleX? (%), scaleY? (%), rotation? (°), shear? (°), ref?: 0..8, ids?} — reference-point based geometry, set on each object on its own (Transform Each: five frames given height 50 are each 50 high); rotation and shear are absolute (Transformations are Totals decides whether nested objects measure them on the pasteboard)",
             has_selection,
             transform_set
         ),
@@ -1264,58 +1264,52 @@ fn transform_set(s: &mut Session, p: &Value) -> Result<Value> {
     let rf = p.get("ref").and_then(Value::as_u64).unwrap_or(0) as usize;
     let with_stroke = s.prefs.dimensions_include_stroke;
     s.edit(|d, _| {
-        if !ids.iter().any(|i| d.item(*i).is_some()) {
-            return ok();
-        }
-        // The measured box (with Dimensions Include Stroke Weight, the stroke's outer edge) and
-        // the geometry it pads.
-        let geom = union_bounds(d, &ids);
-        let from = if with_stroke {
-            ids.iter().filter_map(|i| d.item(*i)).map(Item::visible_bounds).reduce(|a, b| a.union(b)).unwrap_or(geom)
-        } else {
-            geom
-        };
-        let pad = (geom.x0 - from.x0, geom.y0 - from.y0, from.x1 - geom.x1, from.y1 - geom.y1);
-        let w = f64_or(p, "width", from.width()).max(0.01);
-        let h = f64_or(p, "height", from.height()).max(0.01);
-        let anchor = designcraft_geom::reference_point(from, rf);
-        // New rect keeping the reference point fixed, then moved so the ref point lands on x/y.
-        let fx = [0.0, 0.5, 1.0][rf % 3];
-        let fy = [0.0, 0.5, 1.0][(rf / 3).min(2)];
-        let mut to = Rect::new(anchor.x - fx * w, anchor.y - fy * h, anchor.x - fx * w + w, anchor.y - fy * h + h);
-        // x/y are the reference point position relative to the page origin of the first page in the spread.
-        let page_x = ids
-            .first()
-            .and_then(|i| d.find(*i))
-            .and_then(|l| {
-                d.spread(l.spread).map(|sp| {
-                    let pi = sp.page_at_x(from.center().x).unwrap_or(0);
-                    sp.pages[pi].x
-                })
-            })
-            .unwrap_or(0.0);
-        if let Some(x) = p.get("x").and_then(Value::as_f64) {
-            to = to + Vec2::new(x + page_x - anchor.x, 0.0);
-        }
-        if let Some(y) = p.get("y").and_then(Value::as_f64) {
-            to = to + Vec2::new(0.0, y - anchor.y);
-        }
-        let to = Rect::new(to.x0 + pad.0, to.y0 + pad.1, (to.x1 - pad.2).max(to.x0 + pad.0 + 0.01), (to.y1 - pad.3).max(to.y0 + pad.1 + 0.01));
-        let m = Affine::translate((to.x0, to.y0))
-            * Affine::scale_non_uniform(to.width() / geom.width().max(1e-9), to.height() / geom.height().max(1e-9))
-            * Affine::translate((-geom.x0, -geom.y0));
         for id in &ids {
-            if let Some(it) = d.item_mut(*id) {
-                if matches!(it.content, Content::Group { .. }) {
-                    it.xf = m * it.xf;
-                } else {
-                    let inner = it.xf.inverse() * m * it.xf;
-                    bake(it, inner);
-                }
-            }
+            set_box(d, *id, p, rf, with_stroke);
         }
         ok()
     })
+}
+
+fn set_box(d: &mut Document, id: ItemId, p: &Value, rf: usize, with_stroke: bool) {
+    let Some(item) = d.item(id) else { return };
+    // The measured box (with Dimensions Include Stroke Weight, the stroke's outer edge) and
+    // the geometry it pads.
+    let geom = union_bounds(d, &[id]);
+    let from = if with_stroke { item.visible_bounds() } else { geom };
+    let pad = (geom.x0 - from.x0, geom.y0 - from.y0, from.x1 - geom.x1, from.y1 - geom.y1);
+    let w = f64_or(p, "width", from.width()).max(0.01);
+    let h = f64_or(p, "height", from.height()).max(0.01);
+    let anchor = designcraft_geom::reference_point(from, rf);
+    // New rect keeping the reference point fixed, then moved so the ref point lands on x/y.
+    let fx = [0.0, 0.5, 1.0][rf % 3];
+    let fy = [0.0, 0.5, 1.0][(rf / 3).min(2)];
+    let mut to = Rect::new(anchor.x - fx * w, anchor.y - fy * h, anchor.x - fx * w + w, anchor.y - fy * h + h);
+    // x/y are the reference point position relative to the page origin of the first page in the spread.
+    let page_x = d
+        .find(id)
+        .and_then(|l| d.spread(l.spread))
+        .and_then(|sp| sp.pages.get(sp.page_at_x(from.center().x).unwrap_or(0)))
+        .map(|pg| pg.x)
+        .unwrap_or(0.0);
+    if let Some(x) = p.get("x").and_then(Value::as_f64) {
+        to = to + Vec2::new(x + page_x - anchor.x, 0.0);
+    }
+    if let Some(y) = p.get("y").and_then(Value::as_f64) {
+        to = to + Vec2::new(0.0, y - anchor.y);
+    }
+    let to = Rect::new(to.x0 + pad.0, to.y0 + pad.1, (to.x1 - pad.2).max(to.x0 + pad.0 + 0.01), (to.y1 - pad.3).max(to.y0 + pad.1 + 0.01));
+    let m = Affine::translate((to.x0, to.y0))
+        * Affine::scale_non_uniform(to.width() / geom.width().max(1e-9), to.height() / geom.height().max(1e-9))
+        * Affine::translate((-geom.x0, -geom.y0));
+    if let Some(it) = d.item_mut(id) {
+        if matches!(it.content, Content::Group { .. }) {
+            it.xf = m * it.xf;
+        } else {
+            let inner = it.xf.inverse() * m * it.xf;
+            bake(it, inner);
+        }
+    }
 }
 
 fn arrange(s: &mut Session, p: &Value) -> Result<Value> {

@@ -672,9 +672,15 @@ fn a_call_that_returns_nothing_says_what_changed() {
     assert_eq!(said(&mut s, "object.fill", json!({"swatch": "[Black]"})), format!("changed text frame {id} on page 1"));
     assert_eq!(said(&mut s, "edit.deselectAll", json!({})), "nothing is selected");
     assert_eq!(said(&mut s, "edit.deselectAll", json!({})), "nothing changed");
-    assert_eq!(said(&mut s, "text.select", json!({"story": story, "anchor": 0, "focus": 2})), format!("selected bytes 0–2 of story {story}, “Hi”"));
+    assert_eq!(
+        said(&mut s, "text.select", json!({"story": story, "anchor": 0, "focus": 2})),
+        format!("selected characters 0–2 of story {story}, “Hi”")
+    );
     assert_eq!(said(&mut s, "type.char", json!({"size": 24})), format!("changed story {story}"));
-    assert_eq!(said(&mut s, "text.select", json!({"story": story, "anchor": 1, "focus": 1})), format!("the caret is in story {story} at byte 1"));
+    assert_eq!(
+        said(&mut s, "text.select", json!({"story": story, "anchor": 1, "focus": 1})),
+        format!("the caret is in story {story} at character 1")
+    );
 }
 
 #[test]
@@ -757,4 +763,75 @@ fn a_font_that_is_not_installed_is_named_in_the_answer() {
     assert!(answer.contains(&format!("installed families named like it: {installed} (styles ")), "{answer}");
     let answer = said(&mut s, "type.char", json!({"attrs": {"fontFamily": installed, "fontStyle": "Wobbly"}}));
     assert!(answer.contains(&format!("font family {installed} has no Wobbly style; it has ")), "{answer}");
+}
+
+#[test]
+fn text_that_no_longer_fits_its_frame_is_named_in_the_answer() {
+    let mut s = session();
+    let r = s.call("frame.create", &json!({"rect": [36, 36, 136, 136], "content": "text", "text": "4"})).unwrap();
+    let story = r["story"].clone();
+    assert!(r.get("warnings").is_none(), "{r}");
+    s.call("text.select", &json!({"story": story, "anchor": 0, "focus": 1})).unwrap();
+    assert_eq!(
+        said(&mut s, "type.char", json!({"attrs": {"size": 300}})),
+        format!("changed story {story}; story {story} is overset: 1 character of 1 doesn't fit its frames and isn't shown")
+    );
+    assert_eq!(s.call("story.get", &json!({"story": story})).unwrap()["overset"], 1);
+    let inspected = s.call("document.inspect", &json!({})).unwrap();
+    assert_eq!(inspected["stories"][0]["overset"], 1);
+    assert_eq!(said(&mut s, "type.char", json!({"attrs": {"size": 12}})), format!("changed story {story}"));
+    assert_eq!(s.call("story.get", &json!({"story": story})).unwrap()["overset"], 0);
+    let r = s.call("frame.create", &json!({"rect": [36, 200, 46, 210], "content": "text", "text": "ä words"})).unwrap();
+    assert_eq!(r["warnings"], json!([format!("story {} is overset: 7 characters of 7 don't fit its frames and aren't shown", r["story"])]));
+}
+
+#[test]
+fn transform_set_sizes_each_selected_object_on_its_own() {
+    let mut s = session();
+    let ids: Vec<u64> = [36.0, 100.0, 164.0]
+        .iter()
+        .map(|y| s.call("frame.create", &json!({"rect": [36, y, 300, y + 40.0]})).unwrap()["id"].as_u64().unwrap())
+        .collect();
+    s.call("selection.set", &json!({"ids": ids})).unwrap();
+    s.call("transform.set", &json!({"height": 50, "ref": 0})).unwrap();
+    for (id, y) in ids.iter().zip([36.0, 100.0, 164.0]) {
+        let b = s.doc().unwrap().doc.item(designcraft_doc::ItemId(*id)).unwrap().bounds();
+        assert!((b.height() - 50.0).abs() < 1e-6 && (b.y0 - y).abs() < 1e-6, "{id}: {b:?}");
+    }
+}
+
+#[test]
+fn a_carriage_return_ends_a_paragraph_in_every_text() {
+    let mut s = session();
+    let r = s.call("frame.create", &json!({"rect": [36, 36, 300, 200], "content": "text", "text": "x"})).unwrap();
+    let story = r["story"].clone();
+    s.call("story.setText", &json!({"story": story, "text": "HUHTIKUU 2023\rEnsimmäinen\r\nlisenssi"})).unwrap();
+    let got = s.call("story.get", &json!({"story": story})).unwrap();
+    assert_eq!((got["text"].clone(), got["paragraphs"].clone()), (json!("HUHTIKUU 2023\nEnsimmäinen\nlisenssi"), json!(3)));
+    s.call("story.replaceRange", &json!({"story": story, "start": 13, "end": 14, "text": "\r\r"})).unwrap();
+    assert_eq!(s.call("story.get", &json!({"story": story})).unwrap()["paragraphs"], 4);
+}
+
+#[test]
+fn find_change_names_the_stories_it_changed_and_first_means_one_change() {
+    let mut s = session();
+    let a = s.call("frame.create", &json!({"rect": [36, 36, 300, 100], "content": "text", "text": "HUHTIKUU 2023\rEnsimmäinen"})).unwrap()["story"]
+        .clone();
+    let b =
+        s.call("frame.create", &json!({"rect": [36, 120, 300, 200], "content": "text", "text": "Huhtikuu 2023 – 2027 "})).unwrap()["story"].clone();
+    let r = s.call("find.change", &json!({"find": "(\\d{4}) ", "change": "$1\n", "grep": true})).unwrap();
+    assert_eq!(r, json!({"count": 2, "stories": [b]}));
+    let r = s.call("find.change", &json!({"find": "Huhtikuu", "change": "Toukokuu", "first": true})).unwrap();
+    assert_eq!(r, json!({"count": 1, "stories": [a]}));
+    assert_eq!(s.call("story.get", &json!({"story": b})).unwrap()["text"], "Huhtikuu 2023\n– 2027\n");
+}
+
+#[test]
+fn a_story_that_was_overset_before_and_is_untouched_is_not_warned_about() {
+    let mut s = session();
+    let r = s.call("frame.create", &json!({"rect": [36, 36, 46, 46], "content": "text", "text": "4"})).unwrap();
+    assert!(r["warnings"].is_array(), "{r}");
+    s.call("frame.create", &json!({"rect": [36, 100, 300, 200], "content": "text", "text": "2023 "})).unwrap();
+    let r = s.call("find.change", &json!({"find": "2023 ", "change": "2024 "})).unwrap();
+    assert!(r.get("warnings").is_none(), "{r}");
 }

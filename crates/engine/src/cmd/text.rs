@@ -1,12 +1,12 @@
 //! Text editing (Type tool) and character/paragraph formatting.
 
 use designcraft_compose as compose;
-use designcraft_doc::story::floor_char_boundary;
+use designcraft_doc::story::{byte_offset, char_offset, floor_char_boundary};
 use designcraft_doc::{CellAddr, CharAttrs, Content, ItemId, ParaAttrs, Selection, StoryId, TextSel};
 use designcraft_geom::Point;
 use serde_json::{Value, json};
 
-use super::{CommandSpec, bad, bool_or, cmd, has_doc, has_text, has_text_or_frames, id_param, no_story, ok, point_param, str_param};
+use super::{CommandSpec, bad, bool_or, char_param, cmd, has_doc, has_text, has_text_or_frames, id_param, no_story, ok, point_param, str_param};
 use crate::{Result, Session};
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -31,12 +31,12 @@ pub fn specs() -> Vec<CommandSpec> {
             st.selection.text = Some(TextSel { anchor: a, focus: b, ..t });
             ok()
         }),
-        cmd!(noundo "text.select", "Select Text", [], None, "{story, anchor, focus} (UTF-8 byte offsets into the story text, as find.find reports them: á or — counts 2 or 3)", has_doc, |s, p| {
+        cmd!(noundo "text.select", "Select Text", [], None, "{story, anchor, focus} (character offsets into the story text, as find.find reports them; a paragraph break counts 1)", has_doc, |s, p| {
             let sid = StoryId(p.get("story").and_then(Value::as_u64).unwrap_or(0));
             let st = s.doc_mut()?;
             let text = &st.doc.story(sid).ok_or_else(|| bad("text.select", no_story(sid)))?.text;
-            let a = floor_char_boundary(text, p.get("anchor").and_then(Value::as_u64).unwrap_or(0) as usize);
-            let f = floor_char_boundary(text, p.get("focus").and_then(Value::as_u64).map(|v| v as usize).unwrap_or(a));
+            let a = char_param(p, "anchor").map_or(0, |n| byte_offset(text, n));
+            let f = char_param(p, "focus").map_or(a, |n| byte_offset(text, n));
             st.selection = Selection::text(TextSel { story: sid, anchor: a, focus: f, frame: None, cell: None });
             st.revision += 1;
             ok()
@@ -76,7 +76,7 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         cmd!("story.setText", "Set Story Text", [], None, "{story, text} — replace a story's whole text", has_doc, |s, p| {
             let sid = StoryId(p.get("story").and_then(Value::as_u64).ok_or_else(|| bad("story.setText", "missing story"))?);
-            let text = str_param(p, "text").unwrap_or("").to_string();
+            let text = super::text_param(p, "text");
             s.edit(|d, sel| {
                 d.set_story_text(sid, &text)?;
                 if let Some(t) = sel.text.as_mut().filter(|t| t.story == sid) {
@@ -91,18 +91,17 @@ pub fn specs() -> Vec<CommandSpec> {
             "Edit Story",
             [],
             None,
-            "{story, start, end, text} — replace a byte range keeping surrounding formatting",
+            "{story, start, end, text} — replace the characters from start to end, keeping the surrounding formatting → {length}",
             has_doc,
             |s, p| {
                 let sid = StoryId(p.get("story").and_then(Value::as_u64).ok_or_else(|| bad("story.replaceRange", "missing story"))?);
-                let a = p.get("start").and_then(Value::as_u64).unwrap_or(0) as usize;
-                let b = p.get("end").and_then(Value::as_u64).map(|v| v as usize).unwrap_or(a);
-                let text = str_param(p, "text").unwrap_or("").to_string();
+                let a = char_param(p, "start").unwrap_or(0);
+                let b = char_param(p, "end").unwrap_or(a).max(a);
+                let text = super::text_param(p, "text");
                 s.edit(|d, sel| {
                     let st = d.story_mut(sid).ok_or(designcraft_doc::DocError::NoStory(sid))?;
-                    let (a, b) = (a.min(st.len()), b.min(st.len()).max(a.min(st.len())));
-                    st.replace(a..b, &text);
-                    let len = st.len();
+                    st.replace(byte_offset(&st.text, a)..byte_offset(&st.text, b), &text);
+                    let len = st.text.chars().count();
                     if let Some(t) = sel.text.as_mut().filter(|t| t.story == sid) {
                         t.anchor = floor_char_boundary(&st.text, t.anchor);
                         t.focus = floor_char_boundary(&st.text, t.focus);
@@ -111,12 +110,12 @@ pub fn specs() -> Vec<CommandSpec> {
                 })
             }
         ),
-        cmd!(query "story.get", "Get Story", [], None, "{story? | frame?} → text, frames, paragraphs, vertical, overset", has_doc, |s, p| {
+        cmd!(query "story.get", "Get Story", [], None, "{story? | frame?} → text, length, frames, paragraphs, lines, vertical, overset: characters that don't fit the frames (0: all fit)", has_doc, |s, p| {
             let st = s.doc()?;
             let sid = story_of(s, p).ok_or_else(|| bad("story.get", "no story"))?;
             let mut v = st.doc.story_summary(sid).ok_or(designcraft_doc::DocError::NoStory(sid))?;
             let cs = s.cache.get(&st.doc, sid, None);
-            v["overset"] = json!(cs.overset_at);
+            v["overset"] = json!(st.doc.story(sid).map_or(0, |story| super::overset(story, &cs)));
             v["lines"] = json!(cs.line_count());
             Ok(v)
         }),
@@ -327,7 +326,8 @@ fn place(s: &mut Session, p: &Value, extend: bool) -> Result<Value> {
     };
     st.selection = Selection::text(t);
     st.revision += 1;
-    Ok(json!({"story": sid.0, "pos": b, "cell": cell}))
+    let pos = st.doc.text_story(sid, cell).map_or(0, |x| char_offset(&x.text, b));
+    Ok(json!({"story": sid.0, "pos": pos, "cell": cell}))
 }
 
 fn release(s: &mut Session, p: &Value) -> Result<Value> {
@@ -438,12 +438,12 @@ fn insert(s: &mut Session, p: &Value) -> Result<Value> {
             st.insert_with(at, &text, fmt);
             let pos = at + text.len() - trail;
             sel.text = Some(TextSel { anchor: pos, focus: pos, ..t });
-            return Ok(json!({"pos": pos}));
+            return Ok(json!({"pos": char_offset(&st.text, pos)}));
         }
         st.replace(r.clone(), &text);
         let pos = r.start + text.len() - trail;
         sel.text = Some(TextSel { anchor: pos, focus: pos, ..t });
-        Ok(json!({"pos": pos}))
+        Ok(json!({"pos": char_offset(&st.text, pos)}))
     })
 }
 
@@ -715,7 +715,7 @@ fn move_caret(s: &mut Session, p: &Value) -> Result<Value> {
     let stm = s.doc_mut()?;
     stm.selection.text = Some(if extend { TextSel { focus: new, ..t } } else { TextSel { anchor: new, focus: new, ..t } });
     stm.revision += 1;
-    Ok(json!({"pos": new}))
+    Ok(json!({"pos": char_offset(&text, new)}))
 }
 
 fn line_of(cs: &compose::ComposedStory, pos: usize) -> Option<(usize, usize)> {
@@ -1111,42 +1111,41 @@ mod open_type_tests {
     use crate::Session;
 
     #[test]
-    fn text_selection_stays_on_utf8_boundaries() {
+    fn text_offsets_count_characters() {
         let mut s = Session::new();
         s.execute("file.new", &json!({})).unwrap();
         let r = s.execute("frame.create", &json!({"rect": [0, 0, 200, 100], "content": "text", "text": "é漢🙂x"})).unwrap();
         let sid = r["story"].clone();
-        s.execute("text.select", &json!({"story": sid, "anchor": 1, "focus": 4})).unwrap();
+        let story = designcraft_doc::StoryId(sid.as_u64().unwrap());
+        s.execute("text.select", &json!({"story": sid, "anchor": 1, "focus": 3})).unwrap();
         let t = s.doc().unwrap().selection.text.unwrap();
-        assert_eq!((t.anchor, t.focus), (0, 2));
-        s.execute("text.select", &json!({"story": sid, "anchor": 4})).unwrap();
+        assert_eq!((t.anchor, t.focus), (2, 9));
+        s.execute("text.select", &json!({"story": sid, "anchor": 1})).unwrap();
         s.execute("text.delete", &json!({"forward": true})).unwrap();
-        assert_eq!(s.doc().unwrap().doc.story(t.story).unwrap().text, "é🙂x");
-        s.execute("text.select", &json!({"story": sid, "anchor": 2})).unwrap();
-        s.execute("story.setText", &json!({"story": sid, "text": "漢字"})).unwrap();
+        assert_eq!(s.doc().unwrap().doc.story(story).unwrap().text, "é🙂x");
+        s.execute("text.select", &json!({"story": sid, "anchor": 99, "focus": 1})).unwrap();
         let t = s.doc().unwrap().selection.text.unwrap();
-        assert_eq!((t.anchor, t.focus), (0, 0));
-        s.execute("text.move", &json!({"dir": "right"})).unwrap();
-        assert_eq!(s.doc().unwrap().selection.text.unwrap().focus, 3);
+        assert_eq!((t.anchor, t.focus), (7, 2));
+        assert_eq!(s.execute("text.move", &json!({"dir": "right"})).unwrap()["pos"], 3);
+        s.execute("story.replaceRange", &json!({"story": sid, "start": 1, "end": 2, "text": "字"})).unwrap();
+        assert_eq!(s.doc().unwrap().doc.story(story).unwrap().text, "é字x");
+        let found = s.execute("find.find", &json!({"find": "x"})).unwrap();
+        assert_eq!((found[0]["start"].clone(), found[0]["end"].clone()), (json!(2), json!(3)));
+        assert_eq!(s.execute("story.get", &json!({"story": sid})).unwrap()["length"], 3);
     }
 
     #[test]
-    fn replacing_a_range_stays_on_utf8_boundaries() {
+    fn replacing_a_range_keeps_the_caret_on_a_character() {
         let mut s = Session::new();
         s.execute("file.new", &json!({})).unwrap();
         let r = s.execute("frame.create", &json!({"rect": [0, 0, 200, 100], "content": "text", "text": "é漢🙂x"})).unwrap();
         let sid = r["story"].clone();
-        // Offsets inside 漢 (2..5) and 🙂 (5..9) snap back to the character starts: 漢 is replaced.
-        s.execute("story.replaceRange", &json!({"story": sid, "start": 3, "end": 6, "text": "字"})).unwrap();
-        let story = designcraft_doc::StoryId(sid.as_u64().unwrap());
-        assert_eq!(s.doc().unwrap().doc.story(story).unwrap().text, "é字🙂x");
-        // A caret before 🙂 (byte 5) would land inside it once é (2 bytes) is gone.
-        s.execute("text.select", &json!({"story": sid, "anchor": 5})).unwrap();
-        s.execute("story.replaceRange", &json!({"story": sid, "start": 0, "end": 2, "text": ""})).unwrap();
+        s.execute("text.select", &json!({"story": sid, "anchor": 2})).unwrap();
+        s.execute("story.replaceRange", &json!({"story": sid, "start": 0, "end": 1, "text": ""})).unwrap();
         let st = s.doc().unwrap();
         let t = st.selection.text.unwrap();
         let text = &st.doc.story(t.story).unwrap().text;
-        assert_eq!(text, "字🙂x");
+        assert_eq!(text, "漢🙂x");
         assert!(text.is_char_boundary(t.anchor) && text.is_char_boundary(t.focus), "caret {t:?} in {text:?}");
         s.execute("text.move", &json!({"dir": "right"})).unwrap();
     }
@@ -1461,7 +1460,7 @@ mod break_tests {
         assert_eq!(story(&s).text, "One\u{e011}\nTwo\nThree");
         assert_eq!(s.doc().unwrap().selection.text.unwrap().focus, "One\u{e011}\n".len());
         // At the end of a paragraph the break takes the place of its return.
-        let at = story(&s).text.find("\nThree").unwrap();
+        let at = "One\u{e011}\nTwo".chars().count();
         s.execute("text.select", &json!({"story": sid.0, "anchor": at, "focus": at})).unwrap();
         s.execute("text.insert", &json!({"text": "\u{e002}", "raw": true})).unwrap();
         let st = story(&s);
@@ -1470,7 +1469,7 @@ mod break_tests {
         st.check().unwrap();
         // Typing after the break goes to the next paragraph; deleting the break or its return
         // removes both.
-        let at = "One\u{e011}".len();
+        let at = "One\u{e011}".chars().count();
         s.execute("text.select", &json!({"story": sid.0, "anchor": at, "focus": at})).unwrap();
         s.execute("text.insert", &json!({"text": "x"})).unwrap();
         assert_eq!(story(&s).text, "One\u{e011}\nxTwo\u{e002}\nThree");
@@ -1602,7 +1601,7 @@ mod tcy_tests {
         let r = s.execute("frame.create", &json!({"rect": [72, 72, 200, 400], "content": "text", "text": "令和12年", "vertical": true})).unwrap();
         let sid = r["story"].as_u64().unwrap();
         let at = "令和".len();
-        s.execute("text.select", &json!({"story": sid, "anchor": at, "focus": at + 2})).unwrap();
+        s.execute("text.select", &json!({"story": sid, "anchor": 2, "focus": 4})).unwrap();
         let get = |s: &Session| s.doc().unwrap().doc.stories[&designcraft_doc::StoryId(sid)].char_format_at(at + 1).over.tate_chu_yoko;
         s.execute("type.tateChuYoko", &json!({})).unwrap();
         assert_eq!(get(&s), Some(true));
@@ -1637,7 +1636,7 @@ mod tcy_tests {
         let r = s.execute("frame.create", &json!({"rect": [72, 72, 400, 200], "content": "text", "text": "注釈です"})).unwrap();
         let sid = r["story"].as_u64().unwrap();
         let n = "注釈".len();
-        s.execute("text.select", &json!({"story": sid, "anchor": 0, "focus": n})).unwrap();
+        s.execute("text.select", &json!({"story": sid, "anchor": 0, "focus": 2})).unwrap();
         s.execute("type.warichu", &json!({"lines": 2, "size": 40, "align": "left", "lineSpacing": 1, "charsBeforeBreak": 2, "charsAfterBreak": 2}))
             .unwrap();
         let f = |s: &Session| s.doc().unwrap().doc.stories[&designcraft_doc::StoryId(sid)].char_format_at(1).over.clone();
@@ -1694,12 +1693,12 @@ mod bidi_caret_tests {
         s.execute("text.select", &json!({"story": sid, "anchor": 0, "focus": 0})).unwrap();
         // Left moves forward through right-to-left text, Right back.
         let p = s.execute("text.move", &json!({"dir": "left"})).unwrap()["pos"].as_u64().unwrap();
-        assert_eq!(p, 'س'.len_utf8() as u64);
+        assert_eq!(p, 1);
         let p = s.execute("text.move", &json!({"dir": "right"})).unwrap()["pos"].as_u64().unwrap();
         assert_eq!(p, 0);
         // By words too.
         let p = s.execute("text.move", &json!({"dir": "left", "word": true})).unwrap()["pos"].as_u64().unwrap();
-        assert!(p >= "سلام".len() as u64, "{p}");
+        assert!(p >= "سلام".chars().count() as u64, "{p}");
     }
 }
 
@@ -1817,7 +1816,9 @@ mod vertical_caret_tests {
     }
 
     fn mv(s: &mut Session, dir: &str, extend: bool, word: bool) -> usize {
-        s.execute("text.move", &json!({"dir": dir, "extend": extend, "word": word})).unwrap()["pos"].as_u64().unwrap() as usize
+        let pos = s.execute("text.move", &json!({"dir": dir, "extend": extend, "word": word})).unwrap()["pos"].as_u64().unwrap() as usize;
+        let t = s.doc().unwrap().selection.text.unwrap();
+        designcraft_doc::story::byte_offset(&s.doc().unwrap().doc.story(t.story).unwrap().text, pos)
     }
 
     /// (line index, position along the line) of the caret at `pos`.
@@ -1834,7 +1835,7 @@ mod vertical_caret_tests {
         let sid = story(&mut s, true);
         assert!(s.cache.get(&s.doc().unwrap().doc, sid, None).frames[0].lines.len() >= 3);
         let c = '一'.len_utf8();
-        s.execute("text.select", &json!({"story": sid.0, "anchor": 3 * c, "focus": 3 * c})).unwrap();
+        s.execute("text.select", &json!({"story": sid.0, "anchor": 3, "focus": 3})).unwrap();
         // Down and Up move along the line, a character at a time.
         assert_eq!(mv(&mut s, "down", false, false), 4 * c);
         assert_eq!(mv(&mut s, "up", false, false), 3 * c);
@@ -1866,7 +1867,7 @@ mod vertical_caret_tests {
         let mut s = Session::new();
         let sid = story(&mut s, false);
         let c = '一'.len_utf8();
-        s.execute("text.select", &json!({"story": sid.0, "anchor": 3 * c, "focus": 3 * c})).unwrap();
+        s.execute("text.select", &json!({"story": sid.0, "anchor": 3, "focus": 3})).unwrap();
         assert_eq!(mv(&mut s, "right", false, false), 4 * c);
         assert_eq!(mv(&mut s, "left", false, false), 3 * c);
         let (line, x) = place(&s, sid, 3 * c);

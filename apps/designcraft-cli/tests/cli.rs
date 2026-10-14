@@ -129,6 +129,13 @@ fn run_help_says_what_the_ids_do_not() {
         "Rust's regex crate",
         "[Black], [Paper], [None] and [Registration]",
         "If a command fails, run stops there",
+        "transform.set {\"height\": 50} on five frames makes each 50 high",
+        "Text positions (text.select, story.replaceRange, find.find, a story's length) count characters",
+        "\\n, \\r and \\r\\n each end a paragraph",
+        "a command that leaves a story overset says so in its answer",
+        "file.place puts an image into the selected frame only when that frame is empty",
+        "answers {\"count\", \"stories\"}",
+        "ends with a `not saved:` line on stderr",
     ] {
         assert!(help.contains(fact), "missing: {fact}\n{help}");
     }
@@ -281,7 +288,7 @@ fn every_command_prints_what_it_did() {
     assert_eq!(
         stdout,
         format!(
-            "frame.create → {first}\ntext.select → selected bytes 0–5 of story {story}, “Hello”\ntype.char → changed story {story}\nedit.deselectAll → no text is selected\nselection.set → selected text frame {id} on page 1\n"
+            "frame.create → {first}\ntext.select → selected characters 0–5 of story {story}, “Hello”\ntype.char → changed story {story}\nedit.deselectAll → no text is selected\nselection.set → selected text frame {id} on page 1\n"
         )
     );
 }
@@ -352,4 +359,36 @@ fn raster_export_preserves_an_existing_reader_and_private_symlink_target() {
     assert!(std::fs::read(&target).unwrap().starts_with(b"\x89PNG\r\n\x1a\n"));
     assert_eq!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o777, 0o600);
     assert!(std::fs::symlink_metadata(alias).unwrap().file_type().is_symlink());
+}
+
+#[test]
+fn a_run_that_leaves_changes_unsaved_says_so() {
+    let frame = r#"frame.create={"rect":[36,36,300,200],"content":"text","text":"Hello"}"#;
+    let out = cli().args(["run", "--cmd", frame]).output().unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&out.stderr),
+        "not saved: this run changed the document and wrote no .designcraft after the change, so the changes are gone; end the run with --export FILE.designcraft to keep them\n"
+    );
+    let dir = std::env::temp_dir().join(format!("dc-cli-unsaved-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let doc = dir.join("card.designcraft");
+    let doc = doc.to_str().unwrap();
+    let out = cli().args(["run", "--cmd", frame, "--export", doc]).output().unwrap();
+    assert_eq!(String::from_utf8_lossy(&out.stderr), format!("saved {doc}\n"));
+    let out =
+        cli().args(["run", "--in", doc, "--cmd", "document.inspect", "--cmd", r#"text.select={"story":9,"anchor":0,"focus":1}"#]).output().unwrap();
+    assert_eq!(String::from_utf8_lossy(&out.stderr), "");
+    let out = cli().args(["run", "--in", doc, "--cmd", frame, "--export", doc, "--cmd", r#"text.insert={"text":"!"}"#]).output().unwrap();
+    assert!(String::from_utf8_lossy(&out.stderr).ends_with(&format!("end the run with --export {doc} to keep them\n")), "{out:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn commands_are_grouped_by_area() {
+    let out = cli().arg("commands").output().unwrap();
+    let list = String::from_utf8_lossy(&out.stdout);
+    let first = list.lines().next().unwrap();
+    assert!(first.contains(" areas (`designcraft-cli commands AREA.` lists one): file (") && first.contains(", transform ("), "{first}");
+    let transform: Vec<&str> = list.split("\n\ntransform\n").nth(1).unwrap().split("\n\n").next().unwrap().lines().collect();
+    assert!(transform.len() > 1 && transform.iter().all(|l| l.starts_with("transform.")), "{transform:?}");
 }

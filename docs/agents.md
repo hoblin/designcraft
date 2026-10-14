@@ -13,6 +13,7 @@ three ways — pick whichever fits the agent:
 
 ```sh
 designcraft-cli help run                 # how commands are run, and what the ids don't say (units, pages, selection)
+designcraft-cli commands                 # every command, grouped by area; the first line names the areas
 designcraft-cli commands footnote        # every command whose id/label/menu mentions "footnote", one per line
 designcraft-cli describe xref.insert     # one command: its parameters spelled out, what it acts on, what it answers
 ```
@@ -37,9 +38,20 @@ What else the ids don't say (`designcraft-cli help run` has the full list):
 - `frame.create` selects the frame it creates, except a text frame: there it puts the caret in the text and leaves the
   frame unselected, so `object.fill` right after it says "nothing selected". `"caret": false` selects the frame, or
   pass the answered `id` in `ids`.
+- A command whose parameters list `ids` acts on those objects, else on the selected ones, each on its own:
+  `transform.set {"height": 50}` on five frames makes each 50 high (InDesign's Transform Each).
+- Text positions (`text.select`, `story.replaceRange`, `find.find`, a story's `length`) count characters, and in any
+  text a command takes, `\n`, `\r` and `\r\n` each end a paragraph.
+- A story whose text doesn't fit its frames is overset: the rest isn't shown. `overset` in `story.get` and
+  `document.inspect` counts those characters, and a command that leaves a story overset warns, after a `;` in a
+  sentence answer or in `warnings` of a JSON one.
+- `file.place` puts an image into the selected frame only when it is empty; `frame` names a frame to replace.
 - `find.find`, `find.change` and `find.next` with `"grep": true` take a regular expression of Rust's `regex` crate: no
   look-around, no backreferences. In `change`, `$1` is the first group, `$name` a named one and `$$` a dollar sign; a
-  letter right after a group needs `${1}`.
+  letter right after a group needs `${1}`. `find.change` searches every story unless `story` or `scope` narrows it,
+  and answers `{count, stories}`.
+- `designcraft-cli run` saves nothing unless an `--export` writes a `.designcraft`; a run that leaves changes unsaved
+  ends with a `not saved:` line on stderr.
 - A fill or stroke names a swatch. `[Black]`, `[Paper]`, `[None]` and `[Registration]` are built in, brackets included;
   `swatch.create` adds one and answers its name.
 

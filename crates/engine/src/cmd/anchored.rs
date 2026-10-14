@@ -40,13 +40,13 @@ pub fn specs() -> Vec<CommandSpec> {
             has_doc,
             release
         ),
-        cmd!(query "anchored.list", "Anchored Objects", [], None, "{story?} → [{story, index, pos, position, size}]", has_doc, |s, p| {
+        cmd!(query "anchored.list", "Anchored Objects", [], None, "{story?} → [{story, index, pos (character offset), position, size}]", has_doc, |s, p| {
             let d = &s.doc()?.doc;
             let only = p.get("story").and_then(Value::as_u64).map(StoryId);
             let mut out = Vec::new();
             for st in d.stories.values().filter(|st| only.is_none_or(|o| o == st.id)) {
                 for (k, ((pos, _), o)) in st.text.match_indices(OBJECT_MARK).zip(&st.objects).enumerate() {
-                    out.push(json!({"story": st.id.0, "index": k, "pos": pos, "position": o.position, "size": o.size()}));
+                    out.push(json!({"story": st.id.0, "index": k, "pos": designcraft_doc::story::char_offset(&st.text, pos), "position": o.position, "size": o.size()}));
                 }
             }
             Ok(Value::Array(out))
@@ -131,7 +131,10 @@ fn insert(s: &mut Session, p: &Value) -> Result<Value> {
     let position = position_param(p, &AnchorPosition::default())?;
     let st = s.doc()?;
     let (sid, pos) = match (p.get("story").and_then(Value::as_u64), p.get("pos").and_then(Value::as_u64)) {
-        (Some(sid), pos) => (StoryId(sid), pos.map(|v| v as usize).unwrap_or(usize::MAX)),
+        (Some(sid), pos) => {
+            let text = st.doc.story(StoryId(sid)).map_or("", |x| x.text.as_str());
+            (StoryId(sid), pos.map_or(usize::MAX, |v| designcraft_doc::story::byte_offset(text, usize::try_from(v).unwrap_or(usize::MAX))))
+        }
         _ => {
             let t = st
                 .selection
@@ -157,7 +160,7 @@ fn insert(s: &mut Session, p: &Value) -> Result<Value> {
         }
         let end = anchor_items(d, sid, pos, items.clone(), &position)?;
         *sel = designcraft_doc::Selection::text(TextSel { story: sid, anchor: end, focus: end, frame: None, cell: None });
-        Ok(json!({"story": sid.0, "pos": end}))
+        Ok(json!({"story": sid.0, "pos": d.story(sid).map_or(0, |x| designcraft_doc::story::char_offset(&x.text, end))}))
     })
 }
 
