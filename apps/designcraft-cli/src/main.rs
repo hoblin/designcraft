@@ -248,6 +248,21 @@ fn run(args: &[String]) -> Result<(), String> {
         })
         .collect::<Result<Vec<_>, String>>()?;
     let mut s = Session::new();
+    let ran = run_steps(&mut s, args, &steps, &at);
+    let Some(st) = s.active().filter(|st| st.is_dirty() && st.doc != st.saved_doc) else { return ran };
+    let to = st.path.as_deref().unwrap_or("FILE.designcraft");
+    match ran {
+        Ok(()) => {
+            eprintln!(
+                "not saved: this run changed the document and wrote no .designcraft after the change, so the changes are gone; end the run with --export {to} to keep them"
+            );
+            Ok(())
+        }
+        Err(e) => Err(format!("{e} Not saved: the changes before it are gone; end the run with --export {to} to keep them.")),
+    }
+}
+
+fn run_steps(s: &mut Session, args: &[String], steps: &[(String, Value)], at: &dyn Fn(usize) -> String) -> Result<(), String> {
     let mut page = 0usize;
     let mut scale = 1.0f64;
     let mut it = args.iter().enumerate();
@@ -323,7 +338,7 @@ fn run(args: &[String]) -> Result<(), String> {
                         eprintln!("warning: {}", w.as_str().unwrap_or_default());
                     }
                 } else {
-                    export(&mut s, &out, page, scale)?;
+                    export(s, &out, page, scale)?;
                 }
             }
             "--all-pages" => {
@@ -331,17 +346,11 @@ fn run(args: &[String]) -> Result<(), String> {
                 let n = s.doc().map_err(|e| e.to_string())?.doc.page_count();
                 std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
                 for p in 0..n {
-                    export(&mut s, &format!("{dir}/page-{:03}.png", p + 1), p, scale)?;
+                    export(s, &format!("{dir}/page-{:03}.png", p + 1), p, scale)?;
                 }
             }
             other => return Err(format!("run was given `{other}`, which it doesn't take. {RUN_TAKES}")),
         }
-    }
-    if let Some(st) = s.active().filter(|st| st.is_dirty() && st.doc != st.saved_doc) {
-        let to = st.path.as_deref().unwrap_or("FILE.designcraft");
-        eprintln!(
-            "not saved: this run changed the document and wrote no .designcraft after the change, so the changes are gone; end the run with --export {to} to keep them"
-        );
     }
     Ok(())
 }

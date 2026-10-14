@@ -92,7 +92,7 @@ pub(crate) fn oversets(cache: &Cache, doc: &Document) -> BTreeMap<StoryId, usize
         .collect()
 }
 
-pub(crate) fn newly_overset(cache: &Cache, old: &Document, before: &BTreeMap<StoryId, usize>, new: &Document) -> Vec<String> {
+pub(crate) fn overset_warnings(cache: &Cache, old: &Document, before: &BTreeMap<StoryId, usize>, new: &Document) -> Vec<String> {
     oversets(cache, new)
         .into_iter()
         .filter(|(id, n)| {

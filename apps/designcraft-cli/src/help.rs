@@ -42,10 +42,14 @@ What the ids don't say:
   selected text, else on all the text of the selected frames: text.select {\"story\": N, \"anchor\": 0,
   \"focus\": 5} selects characters 0–5 of a story. A command whose parameters list `ids` acts on those
   objects, else on the selected ones, each on its own: transform.set {\"height\": 50} on five frames
-  makes each 50 high. selection.set {\"ids\": [...]} selects objects.
-- Text positions (text.select, story.replaceRange, find.find, a story's length) count characters:
-  ä, — and は are one each, and so is a paragraph break.
-- In any text a command takes, \\n, \\r and \\r\\n each end a paragraph; \\u2028 is a line break inside one.
+  makes each 50 high (\"each\": false sizes their box as one). selection.set {\"ids\": [...]} selects
+  objects.
+- Text positions (text.select, story.replaceRange, find.find, spelling.check, changes.list, a story's
+  length) count characters: ä, — and は are one each, and so is a paragraph break. A position past
+  the end is the end.
+- In story text a command takes (frame.create, text.insert, story.setText, story.replaceRange,
+  find.change, footnotes, endnotes, table cells, type on a path), \\n, \\r and \\r\\n each end a
+  paragraph; \\u2028 is a line break inside one.
 - A story is overset when its text doesn't fit its frames: the rest isn't shown, even a single big
   glyph that is taller than the frame. `overset` in story.get and document.inspect counts those
   characters (0 when all fit), and a command that leaves a story overset says so in its answer, as a

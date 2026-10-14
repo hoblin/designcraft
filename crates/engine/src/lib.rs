@@ -432,8 +432,8 @@ impl Session {
         cmd::check_params(spec, params)?;
         let before = self.active().map(|d| (d.uid, d.doc.clone(), d.selection.clone()));
         let overset_before = match (spec.undoable, &before) {
-            (true, Some((_, doc, _))) => describe::oversets(&self.cache, doc),
-            _ => Default::default(),
+            (true, Some((_, doc, _))) => Some(describe::oversets(&self.cache, doc)),
+            _ => None,
         };
         let asked = self.ui_requests.len();
         let r = self.execute(id, params)?;
@@ -444,7 +444,8 @@ impl Session {
                     .into_iter()
                     .filter(|f| !was.contains(f))
                     .map(|(fam, st)| cmd::fonts::not_installed(&d.doc, &fam, &st));
-                fonts.chain(describe::newly_overset(&self.cache, old, &overset_before, &d.doc)).collect()
+                let overset = overset_before.map(|was| describe::overset_warnings(&self.cache, old, &was, &d.doc)).unwrap_or_default();
+                fonts.chain(overset).collect()
             }
             _ => vec![],
         };

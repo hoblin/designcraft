@@ -41,7 +41,15 @@ pub fn specs() -> Vec<CommandSpec> {
             st.revision += 1;
             ok()
         }),
-        cmd!("text.insert", "Type", [], None, "{text, raw?: bool (no typographer's quotes)} — replaces the selected text", has_text, insert),
+        cmd!(
+            "text.insert",
+            "Type",
+            [],
+            None,
+            "{text (\\n, \\r or \\r\\n ends a paragraph), raw?: bool (no typographer's quotes)} — replaces the selected text",
+            has_text,
+            insert
+        ),
         cmd!("text.delete", "Delete Text", [], None, "{forward?: bool, word?: bool}", has_text, delete),
         cmd!(noundo "text.move", "Move Caret", [], None, "{dir: left|right|up|down|lineStart|lineEnd|storyStart|storyEnd, extend?, word?}", has_text, move_caret),
         cmd!(noundo "text.exitToFrame", "Select Frame", [], None, "{}", has_doc, |s, _| {
@@ -74,18 +82,26 @@ pub fn specs() -> Vec<CommandSpec> {
                 })
             }
         ),
-        cmd!("story.setText", "Set Story Text", [], None, "{story, text} — replace a story's whole text", has_doc, |s, p| {
-            let sid = StoryId(p.get("story").and_then(Value::as_u64).ok_or_else(|| bad("story.setText", "missing story"))?);
-            let text = super::text_param(p, "text");
-            s.edit(|d, sel| {
-                d.set_story_text(sid, &text)?;
-                if let Some(t) = sel.text.as_mut().filter(|t| t.story == sid) {
-                    t.anchor = floor_char_boundary(&text, t.anchor);
-                    t.focus = floor_char_boundary(&text, t.focus);
-                }
-                ok()
-            })
-        }),
+        cmd!(
+            "story.setText",
+            "Set Story Text",
+            [],
+            None,
+            "{story, text (\\n, \\r or \\r\\n ends a paragraph)} — replace a story's whole text",
+            has_doc,
+            |s, p| {
+                let sid = StoryId(p.get("story").and_then(Value::as_u64).ok_or_else(|| bad("story.setText", "missing story"))?);
+                let text = super::text_param(p, "text");
+                s.edit(|d, sel| {
+                    d.set_story_text(sid, &text)?;
+                    if let Some(t) = sel.text.as_mut().filter(|t| t.story == sid) {
+                        t.anchor = floor_char_boundary(&text, t.anchor);
+                        t.focus = floor_char_boundary(&text, t.focus);
+                    }
+                    ok()
+                })
+            }
+        ),
         cmd!(
             "story.replaceRange",
             "Edit Story",
@@ -360,7 +376,7 @@ fn release(s: &mut Session, p: &Value) -> Result<Value> {
         }
         let end = st.insert_story(at, &piece);
         sel.text = Some(TextSel { story: sid, anchor: at, focus: end, frame: Some(frame), cell });
-        Ok(json!({"moved": piece.text.len(), "at": at}))
+        Ok(json!({"moved": piece.text.chars().count(), "at": char_offset(&st.text, at)}))
     })
 }
 
@@ -1617,7 +1633,7 @@ mod tcy_tests {
         s.execute("file.new", &json!({})).unwrap();
         let r = s.execute("frame.create", &json!({"rect": [72, 72, 400, 200], "content": "text", "text": "漢字です"})).unwrap();
         let sid = r["story"].as_u64().unwrap();
-        s.execute("text.select", &json!({"story": sid, "anchor": 0, "focus": "漢字".len()})).unwrap();
+        s.execute("text.select", &json!({"story": sid, "anchor": 0, "focus": "漢字".chars().count()})).unwrap();
         s.execute("type.ruby", &json!({"text": "かんじ"})).unwrap();
         s.execute("type.kenten", &json!({})).unwrap();
         let f = |s: &Session| s.doc().unwrap().doc.stories[&designcraft_doc::StoryId(sid)].char_format_at(1).over.clone();

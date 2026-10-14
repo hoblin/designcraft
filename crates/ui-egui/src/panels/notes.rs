@@ -49,7 +49,7 @@ pub fn show(app: &mut DesignApp, ui: &mut egui::Ui) {
             ui.label(n["text"].as_str().unwrap_or(""));
             ui.horizontal(|ui| {
                 if ui.small_button(crate::rtl::widget(ui, crate::i18n::tr(&app.ui.language, "Go To"))).clicked() {
-                    let _ = app.run("text.select", json!({"story": story, "anchor": at, "focus": at + 3}));
+                    let _ = app.run("text.select", json!({"story": story, "anchor": at, "focus": at + 1}));
                 }
                 if ui.small_button(crate::rtl::widget(ui, crate::i18n::tr(&app.ui.language, "Convert to Text"))).clicked() {
                     let _ = app.run("note.convertToText", json!({"story": story, "id": nid}));

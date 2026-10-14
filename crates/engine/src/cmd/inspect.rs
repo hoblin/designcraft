@@ -98,9 +98,20 @@ fn inspect(s: &mut Session, _p: &Value) -> Result<Value> {
         "paragraphStyles": d.styles.paragraph.iter().map(|p| &p.name).collect::<Vec<_>>(),
         "characterStyles": d.styles.character.iter().map(|p| &p.name).collect::<Vec<_>>(),
         "swatches": d.swatches.iter().map(|w| &w.name).collect::<Vec<_>>(),
-        "selection": st.selection,
+        "selection": selection(st),
         "activeLayer": st.active_layer.0,
         "tool": s.tool_id(),
         "canUndo": !st.history.undo.is_empty(),
     }))
+}
+
+fn selection(st: &crate::DocState) -> Value {
+    let mut v = json!(st.selection);
+    if let Some(t) = st.selection.text
+        && let Some(story) = st.doc.text_story(t.story, t.cell)
+    {
+        v["text"]["anchor"] = json!(designcraft_doc::story::char_offset(&story.text, t.anchor));
+        v["text"]["focus"] = json!(designcraft_doc::story::char_offset(&story.text, t.focus));
+    }
+    v
 }

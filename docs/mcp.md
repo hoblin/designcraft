@@ -64,10 +64,11 @@ see `ui_inspect` → `canvasRect`).
 ## Text offsets
 
 Positions in a story's text count **characters**: `anchor` / `focus` of `text.select`, `start` / `end` of
-`story.replaceRange` and of `find.find` matches, the `pos` that `text.placeCaret`, `text.insert`, `text.move` and
+`story.replaceRange`, of `find.find` matches, of `spelling.check` and of `changes.list`, the `pos` that `text.placeCaret`, `text.insert`, `text.move` and
 the anchored-object, footnote, cross-reference and index commands answer, and a story's `length` in `get_story` and
 `inspect_document`. é, — and は count one each, and so does a paragraph break, so the story `はただ商店` has length 5.
-A story's `overset` is the number of characters that don't fit its frames (0 when all fit).
+A position past the end is the end. A story's `overset` is the number of characters that don't fit its frames (0 when
+all fit).
 
 ## Tools
 
@@ -78,7 +79,7 @@ A story's `overset` is the number of characters that don't fit its frames (0 whe
 | `batch` | Run `commands: [{command, params}]` (or `script` text, one `command.id {json}` per line) in order, stopping at the first error (reports `failedIndex`); `"$N.path"` parameters use earlier results ([agents.md](agents.md)) |
 | `inspect_document` | Pages, spreads, items (ids, bounds, fill, story), stories (length, overset), layers, styles, swatches, selection |
 | `get_story` | Text, frames, paragraphs, lines, overset of a story (`story` or text `frame`) |
-| `set_story_text` | Replace a story's text (`\n` = new paragraph) |
+| `set_story_text` | Replace a story's text (`\n`, `\r` or `\r\n` = new paragraph) |
 | `new_document` | `file.new` (preset, width, height, pages, facingPages, columns, gutter, margins, bleed, title) or `sample: true` |
 | `open_document` / `save_document` | Native `.designcraft` files |
 | `place_image` | Image from `path` or `base64` into `frame`, the selected frame, or a new frame at x, y, width |

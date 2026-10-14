@@ -1,5 +1,6 @@
 //! Type › Hyperlinks & Cross-References: text anchors, cross-references and their formats.
 
+use designcraft_doc::story::char_offset;
 use designcraft_doc::{CrossRef, StoryId, TextSel, XrefFormat};
 use serde_json::{Value, json};
 
@@ -97,7 +98,7 @@ fn insert(s: &mut Session, p: &Value) -> Result<Value> {
         st.insert_xref(r.start, CrossRef { target, format });
         let pos = r.start + designcraft_doc::XREF_MARK.len_utf8();
         sel.text = Some(TextSel { anchor: pos, focus: pos, ..t2 });
-        Ok(json!({"target": target, "pos": designcraft_doc::story::char_offset(&st.text, r.start)}))
+        Ok(json!({"target": target, "pos": char_offset(&st.text, r.start)}))
     })
 }
 
@@ -121,7 +122,7 @@ fn list(s: &mut Session, _: &Value) -> Result<Value> {
     for st in d.stories.values() {
         for ((pos, _), x) in st.text.match_indices(designcraft_doc::XREF_MARK).zip(&st.xrefs) {
             let text = designcraft_compose::xref::xref_text(&d, x, Some(&index));
-            out.push(json!({"story": st.id.0, "pos": designcraft_doc::story::char_offset(&st.text, pos), "target": x.target, "format": x.format, "text": text}));
+            out.push(json!({"story": st.id.0, "pos": char_offset(&st.text, pos), "target": x.target, "format": x.format, "text": text}));
         }
     }
     Ok(Value::Array(out))
@@ -133,7 +134,7 @@ fn list_anchors(s: &mut Session, _: &Value) -> Result<Value> {
     let mut out = Vec::new();
     for st in d.stories.values() {
         for a in &st.anchors {
-            out.push(json!({"id": a.id, "name": a.name, "story": st.id.0, "pos": st.anchor_pos(a.id).map(|at| designcraft_doc::story::char_offset(&st.text, at)), "page": index.page(a.id)}));
+            out.push(json!({"id": a.id, "name": a.name, "story": st.id.0, "pos": st.anchor_pos(a.id).map(|at| char_offset(&st.text, at)), "page": index.page(a.id)}));
         }
     }
     Ok(Value::Array(out))

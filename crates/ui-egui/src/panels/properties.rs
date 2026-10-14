@@ -458,6 +458,7 @@ fn transform_section(app: &mut DesignApp, ui: &mut Ui, i: &SelInfo) {
     }
     if !set.is_empty() {
         set.insert("ref".into(), json!(rp));
+        set.insert("each".into(), json!(false));
         let _ = app.run("transform.set", Value::Object(set));
     }
     if more_options(ui, &app.ui.language).clicked() {

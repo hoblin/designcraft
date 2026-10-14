@@ -164,8 +164,8 @@ mod tests {
         let r = s.execute("frame.create", &json!({"rect": [72, 72, 400, 300], "content": "text", "text": "Price: $10 / €9"})).unwrap();
         let sid = designcraft_doc::StoryId(r["story"].as_u64().unwrap());
         s.execute("condition.new", &json!({"name": "EU"})).unwrap();
-        let eu = "Price: $10 / ".len();
-        s.execute("text.select", &json!({"story": r["story"], "anchor": eu, "focus": "Price: $10 / €9".len()})).unwrap();
+        let eu = "Price: $10 / ".chars().count();
+        s.execute("text.select", &json!({"story": r["story"], "anchor": eu, "focus": "Price: $10 / €9".chars().count()})).unwrap();
         s.execute("condition.apply", &json!({"name": "EU"})).unwrap();
         let end_x = |s: &Session| s.cache.get(&s.doc().unwrap().doc, sid, None).frames[0].lines[0].end_x;
         let shown = end_x(&s);

@@ -78,7 +78,7 @@ pub fn show(app: &mut DesignApp, ctx: &egui::Context) {
                             ui,
                             egui::RichText::new(
                                 crate::i18n::tr(&app.ui.language, "{count} characters don't fit")
-                                    .replace("{count}", &story.text[o.min(story.text.len())..].chars().count().to_string()),
+                                    .replace("{count}", &story.text.get(o..).map_or(0, |rest| rest.chars().count()).to_string()),
                             )
                             .color(t.text_dim),
                         );

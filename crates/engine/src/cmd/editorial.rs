@@ -1,5 +1,6 @@
 //! Type › Notes: editorial notes anchored in text (never printed or exported).
 
+use designcraft_doc::story::char_offset;
 use std::sync::Arc;
 
 use designcraft_doc::{EditorialNote, NOTE_MARK, StoryId};
@@ -84,7 +85,7 @@ pub fn specs() -> Vec<CommandSpec> {
             for st in d.stories.values() {
                 for (k, (at, _)) in st.text.match_indices(NOTE_MARK).enumerate() {
                     if let Some(n) = st.editorial.get(k) {
-                        out.push(json!({"story": st.id.0, "id": n.id, "at": at, "author": n.author, "text": n.text}));
+                        out.push(json!({"story": st.id.0, "id": n.id, "at": char_offset(&st.text, at), "author": n.author, "text": n.text}));
                     }
                 }
             }

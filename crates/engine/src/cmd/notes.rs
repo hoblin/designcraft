@@ -1,5 +1,6 @@
 //! Type › Insert Footnote, Document Footnote Options, footnote inspection and editing.
 
+use designcraft_doc::story::char_offset;
 use designcraft_doc::{CellAddr, FootnoteOptions, ParaFormat, StoryId, TextSel};
 use serde_json::{Value, json};
 
@@ -121,7 +122,7 @@ fn list(s: &mut Session, p: &Value) -> Result<Value> {
     let mut out = Vec::new();
     for st in d.stories.values().filter(|st| only.is_none_or(|o| o == st.id)) {
         for (k, n) in st.notes.iter().enumerate() {
-            out.push(json!({"story": st.id.0, "id": n.id, "index": k, "anchor": st.note_anchor(n.id), "text": n.text.text}));
+            out.push(json!({"story": st.id.0, "id": n.id, "index": k, "anchor": st.note_anchor(n.id).map(|at| char_offset(&st.text, at)), "text": n.text.text}));
         }
     }
     Ok(Value::Array(out))
@@ -162,7 +163,7 @@ fn go_to_reference(s: &mut Session, _: &Value) -> Result<Value> {
     let pos = at + designcraft_doc::FOOTNOTE_REF.len_utf8();
     st.selection.text = Some(TextSel { anchor: pos, focus: pos, cell: None, ..t });
     st.revision += 1;
-    Ok(json!({"story": t.story.0, "pos": st.doc.story(t.story).map_or(0, |x| designcraft_doc::story::char_offset(&x.text, pos))}))
+    Ok(json!({"story": t.story.0, "pos": st.doc.story(t.story).map_or(0, |x| char_offset(&x.text, pos))}))
 }
 
 #[cfg(test)]
@@ -195,7 +196,7 @@ mod tests {
         assert_eq!(cs.frames[0].notes.len(), 1);
         // Back to the reference.
         let r = s.execute("footnote.goToReference", &json!({})).unwrap();
-        assert_eq!(r["pos"], json!(17));
+        assert_eq!(r["pos"], json!(16 + 1));
         // Listing, editing, options.
         let l = s.execute("footnote.list", &json!({})).unwrap();
         assert_eq!(l[0]["text"], "A source.");

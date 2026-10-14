@@ -1,5 +1,6 @@
 //! Edit menu: undo/redo, selection, clear, clipboard.
 
+use designcraft_doc::story::char_offset;
 use std::sync::Arc;
 
 use designcraft_doc::{ItemId, Selection, SpreadRef};
@@ -69,7 +70,7 @@ fn paste_text(s: &mut Session, text: Option<String>, formatted: bool) -> Result<
                 st.delete(r.start.min(st.len())..r.end.min(st.len()));
                 let end = super::anchored::anchor_items(d, t.story, r.start, list.clone(), &Default::default())?;
                 sel.text = Some(designcraft_doc::TextSel { anchor: end, focus: end, ..t });
-                Ok(json!({"pos": d.story(t.story).map_or(0, |x| designcraft_doc::story::char_offset(&x.text, end)), "anchored": list.len()}))
+                Ok(json!({"pos": d.story(t.story).map_or(0, |x| char_offset(&x.text, end)), "anchored": list.len()}))
             });
         }
     }
@@ -84,11 +85,11 @@ fn paste_text(s: &mut Session, text: Option<String>, formatted: bool) -> Result<
             st.delete(r.clone());
             let end = st.insert_story(r.start, &slice);
             sel.text = Some(designcraft_doc::TextSel { anchor: end, focus: end, ..t });
-            Ok(json!({"pos": designcraft_doc::story::char_offset(&st.text, end), "formatted": true}))
+            Ok(json!({"pos": char_offset(&st.text, end), "formatted": true}))
         });
     }
     let text = text.or_else(|| clip.map(|(_, p)| p)).ok_or_else(|| super::bad("edit.paste", "clipboard is empty"))?;
-    s.execute("text.insert", &json!({"text": text.replace("\r\n", "\n").replace('\r', "\n"), "raw": true}))
+    s.execute("text.insert", &json!({"text": super::paragraphs(&text), "raw": true}))
 }
 
 fn strip_objects(st: &designcraft_doc::Story) -> designcraft_doc::Story {
@@ -327,7 +328,7 @@ mod text_clipboard_tests {
         // A footnote inside the copied range travels with it.
         s.execute("text.select", &json!({"story": a.0, "anchor": 4, "focus": 4})).unwrap();
         s.execute("footnote.insert", &json!({"text": "n"})).unwrap();
-        s.execute("text.select", &json!({"story": a.0, "anchor": 0, "focus": 11})).unwrap();
+        s.execute("text.select", &json!({"story": a.0, "anchor": 0, "focus": "Bold words".chars().count() + 1})).unwrap();
         let r = s.execute("edit.copy", &json!({})).unwrap();
         assert_eq!(r["text"], "Bold words");
         // Formatted paste when the system clipboard matches.

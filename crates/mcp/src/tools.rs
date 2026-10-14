@@ -159,7 +159,7 @@ pub fn tool_definitions() -> Vec<Value> {
         tool(
             "set_story_text",
             "Set story text",
-            "Replace the whole text of a story (keeps the first paragraph's and character's formatting). Use \\n for paragraph breaks. \
+            "Replace the whole text of a story (keeps the first paragraph's and character's formatting). Use \\n (or \\r) for paragraph breaks. \
              Identify the story by `story` id or by a text `frame` id.",
             obj(json!({"story": int("Story id"), "frame": int("Text frame id"), "text": string("New text")}), &["text"]),
             false,

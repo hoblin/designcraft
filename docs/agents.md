@@ -40,8 +40,9 @@ What else the ids don't say (`designcraft-cli help run` has the full list):
   pass the answered `id` in `ids`.
 - A command whose parameters list `ids` acts on those objects, else on the selected ones, each on its own:
   `transform.set {"height": 50}` on five frames makes each 50 high (InDesign's Transform Each).
-- Text positions (`text.select`, `story.replaceRange`, `find.find`, a story's `length`) count characters, and in any
-  text a command takes, `\n`, `\r` and `\r\n` each end a paragraph.
+- Text positions (`text.select`, `story.replaceRange`, `find.find`, `spelling.check`, `changes.list`, a story's
+  `length`) count characters, and in story text a command takes, `\n`, `\r` and `\r\n` each end a paragraph.
+- `transform.set` on several objects sizes and places each on its own; `"each": false` treats their box as one.
 - A story whose text doesn't fit its frames is overset: the rest isn't shown. `overset` in `story.get` and
   `document.inspect` counts those characters, and a command that leaves a story overset warns, after a `;` in a
   sentence answer or in `warnings` of a JSON one.

@@ -835,3 +835,45 @@ fn a_story_that_was_overset_before_and_is_untouched_is_not_warned_about() {
     let r = s.call("find.change", &json!({"find": "2023 ", "change": "2024 "})).unwrap();
     assert!(r.get("warnings").is_none(), "{r}");
 }
+
+#[test]
+fn transform_set_places_each_object_or_moves_the_box_as_one() {
+    let mut s = session();
+    let ids: Vec<u64> =
+        [36.0, 100.0].iter().map(|y| s.call("frame.create", &json!({"rect": [36, y, 136, y + 40.0]})).unwrap()["id"].as_u64().unwrap()).collect();
+    let top = |s: &Session| ids.iter().map(|id| s.doc().unwrap().doc.item(designcraft_doc::ItemId(*id)).unwrap().bounds().y0).collect::<Vec<_>>();
+    s.call("transform.set", &json!({"ids": ids, "y": 200, "each": false})).unwrap();
+    assert_eq!(top(&s), vec![200.0, 264.0]);
+    s.call("transform.set", &json!({"ids": ids, "y": 300})).unwrap();
+    assert_eq!(top(&s), vec![300.0, 300.0]);
+}
+
+#[test]
+fn every_text_position_an_answer_gives_counts_characters() {
+    let mut s = session();
+    let r = s.call("frame.create", &json!({"rect": [36, 36, 300, 200], "content": "text", "text": "Ensimmäinen ä ä"})).unwrap();
+    let story = r["story"].clone();
+    let found = s.call("find.find", &json!({"find": "ä"})).unwrap();
+    let starts: Vec<u64> = found.as_array().unwrap().iter().map(|m| m["start"].as_u64().unwrap()).collect();
+    assert_eq!(starts, vec![6, 12, 14]);
+    s.call("text.select", &json!({"story": story, "anchor": 0, "focus": 0})).unwrap();
+    assert_eq!(s.call("find.next", &json!({"find": "ä"})).unwrap(), json!({"story": story, "start": 6, "end": 7}));
+    assert_eq!(s.call("document.inspect", &json!({})).unwrap()["selection"]["text"]["focus"], 7);
+    let misspelt = s.call("spelling.check", &json!({"story": story, "suggestions": false})).unwrap();
+    assert_eq!((misspelt[0]["start"].clone(), misspelt[0]["end"].clone()), (json!(0), json!(11)));
+    s.call("changes.track", &json!({"on": true})).unwrap();
+    s.call("text.select", &json!({"story": story, "anchor": 15, "focus": 15})).unwrap();
+    s.call("text.insert", &json!({"text": "!"})).unwrap();
+    let change = &s.call("changes.list", &json!({})).unwrap()[0];
+    assert_eq!((change["start"].clone(), change["end"].clone()), (json!(15), json!(16)));
+    s.call("changes.accept", &json!({"story": story, "start": 15})).unwrap();
+}
+
+#[test]
+fn undo_does_not_warn_about_a_story_it_did_not_touch() {
+    let mut s = session();
+    s.call("frame.create", &json!({"rect": [36, 36, 46, 46], "content": "text", "text": "4"})).unwrap();
+    s.call("frame.create", &json!({"rect": [36, 100, 300, 200]})).unwrap();
+    let undone = said(&mut s, "edit.undo", json!({}));
+    assert!(!undone.contains("overset"), "{undone}");
+}

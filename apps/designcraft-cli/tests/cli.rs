@@ -130,7 +130,7 @@ fn run_help_says_what_the_ids_do_not() {
         "[Black], [Paper], [None] and [Registration]",
         "If a command fails, run stops there",
         "transform.set {\"height\": 50} on five frames makes each 50 high",
-        "Text positions (text.select, story.replaceRange, find.find, a story's length) count characters",
+        "Text positions (text.select, story.replaceRange, find.find, spelling.check, changes.list, a story's length) count characters",
         "\\n, \\r and \\r\\n each end a paragraph",
         "a command that leaves a story overset says so in its answer",
         "file.place puts an image into the selected frame only when that frame is empty",
@@ -155,7 +155,7 @@ Parameters:
   content, optional    graphic|text|unassigned
   sides, optional      3–100 (polygon; default 6)
   starInset, optional  0–100 (% for a star polygon)
-  text, optional       string
+  text, optional       string (\\n, \\r or \\r\\n ends a paragraph)
   caret, optional      bool (text: true by default, which puts the caret in the new text and leaves the frame unselected; false selects the frame)
   vertical, optional   bool (text: a new vertical story)
 
@@ -249,7 +249,7 @@ fn a_failing_command_says_which_and_what_was_not_written() {
     assert_eq!(
         String::from_utf8_lossy(&out.stderr),
         format!(
-            "designcraft-cli: --cmd 2 of 2: `frame.create` was given `rct`, which it doesn't take. `frame.create` takes {}. Nothing after it ran. {} was not written.\n",
+            "designcraft-cli: --cmd 2 of 2: `frame.create` was given `rct`, which it doesn't take. `frame.create` takes {}. Nothing after it ran. {} was not written. Not saved: the changes before it are gone; end the run with --export FILE.designcraft to keep them.\n",
             designcraft_engine::find_command("frame.create").unwrap().params,
             png.display()
         )
@@ -391,4 +391,28 @@ fn commands_are_grouped_by_area() {
     assert!(first.contains(" areas (`designcraft-cli commands AREA.` lists one): file (") && first.contains(", transform ("), "{first}");
     let transform: Vec<&str> = list.split("\n\ntransform\n").nth(1).unwrap().split("\n\n").next().unwrap().lines().collect();
     assert!(transform.len() > 1 && transform.iter().all(|l| l.starts_with("transform.")), "{transform:?}");
+}
+
+#[test]
+fn a_run_that_fails_after_changing_the_document_says_the_changes_are_gone() {
+    let out = cli()
+        .args([
+            "run",
+            "--cmd",
+            r#"frame.create={"rect":[36,36,300,200],"content":"text","text":"Hello"}"#,
+            "--cmd",
+            "edit.deselectAll",
+            "--cmd",
+            r#"text.insert={"text":"!"}"#,
+        ])
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !out.status.success()
+            && err.ends_with(
+                "Nothing after it ran. Not saved: the changes before it are gone; end the run with --export FILE.designcraft to keep them.\n"
+            ),
+        "{err}"
+    );
 }

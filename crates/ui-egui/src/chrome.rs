@@ -216,20 +216,20 @@ fn control_object(app: &mut DesignApp, ui: &mut egui::Ui) {
     egui::Grid::new("ctl_xywh").num_columns(4).spacing(vec2(4.0, 4.0)).show(ui, |ui| {
         caption(ui, crate::i18n::tr(&app.ui.language, "X:"));
         if let Some(v) = measure(ui, "cx", x, units, 64.0) {
-            let _ = app.run("transform.set", json!({"x": v}));
+            let _ = app.run("transform.set", json!({"x": v, "each": false}));
         }
         caption(ui, crate::i18n::tr(&app.ui.language, "W:"));
         if let Some(v) = measure(ui, "cw", w, units, 64.0) {
-            let _ = app.run("transform.set", json!({"width": v}));
+            let _ = app.run("transform.set", json!({"width": v, "each": false}));
         }
         ui.end_row();
         caption(ui, crate::i18n::tr(&app.ui.language, "Y:"));
         if let Some(v) = measure(ui, "cy", y, units, 64.0) {
-            let _ = app.run("transform.set", json!({"y": v}));
+            let _ = app.run("transform.set", json!({"y": v, "each": false}));
         }
         caption(ui, crate::i18n::tr(&app.ui.language, "H:"));
         if let Some(v) = measure(ui, "ch", h, units, 64.0) {
-            let _ = app.run("transform.set", json!({"height": v}));
+            let _ = app.run("transform.set", json!({"height": v, "each": false}));
         }
         ui.end_row();
     });

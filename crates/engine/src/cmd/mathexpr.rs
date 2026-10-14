@@ -2,6 +2,7 @@
 //! text insertion point (an anchored object) or as a frame. The LaTeX is kept as the object's
 //! alt text, so it can be edited and exports accessibly.
 
+use designcraft_doc::story::char_offset;
 use std::sync::Arc;
 
 use designcraft_doc::{Asset, AssetId, Content, Graphic, Item, ItemId, Shape};
@@ -81,7 +82,7 @@ fn insert(s: &mut Session, p: &Value) -> Result<Value> {
             }
             let end = super::anchored::anchor_items(d, t.story, r.start, vec![it], &Default::default())?;
             sel.text = Some(designcraft_doc::TextSel { anchor: end, focus: end, ..t });
-            return Ok(json!({"inline": true, "pos": d.story(t.story).map_or(0, |x| designcraft_doc::story::char_offset(&x.text, end))}));
+            return Ok(json!({"inline": true, "pos": d.story(t.story).map_or(0, |x| char_offset(&x.text, end))}));
         }
         let pr = d.spread(spread).and_then(|sp| sp.pages.first()).map(|pg| pg.margin_rect()).unwrap_or(Rect::new(36.0, 36.0, 300.0, 300.0));
         let it = math_item(d, &latex, size, lid, (px.unwrap_or(pr.x0), py.unwrap_or(pr.y0)));
