@@ -121,9 +121,13 @@ fn run_help_says_what_the_ids_do_not() {
         "COMMAND is a command id, then `=`, then the command's parameters as one JSON object",
         "A rect is [x0, y0, x1, y1]: two corners, not a width and height",
         "Pages are counted from 0 in parameters",
-        "frame.create selects the frame it creates",
+        "frame.create selects the frame it creates, except a text frame",
+        "\"caret\": false selects the frame instead",
         "selection.set {\"ids\": [...]} selects objects",
         "\"story\": \"$0.story\" passes 9",
+        "\"$1 $2\" reaches find.change as written",
+        "Rust's regex crate",
+        "[Black], [Paper], [None] and [Registration]",
         "If a command fails, run stops there",
     ] {
         assert!(help.contains(fact), "missing: {fact}\n{help}");
@@ -145,7 +149,7 @@ Parameters:
   sides, optional      3–100 (polygon; default 6)
   starInset, optional  0–100 (% for a star polygon)
   text, optional       string
-  caret, optional      bool
+  caret, optional      bool (text: true by default, which puts the caret in the new text and leaves the frame unselected; false selects the frame)
   vertical, optional   bool (text: a new vertical story)
 
 Run it with: designcraft-cli run --cmd 'frame.create={…}'
@@ -157,7 +161,7 @@ Run it with: designcraft-cli run --cmd 'frame.create={…}'
         "object.fill: Fill.
 
 Parameters:
-  swatch          (a swatch's name, e.g. [Paper])
+  swatch          (a swatch's name; [Black], [Paper], [None] and [Registration] are built in, swatch.create adds one)
   tint, optional  0..1
   ids, optional
 Acts on the objects in `ids`, else on the selected objects.
@@ -186,7 +190,10 @@ Run it with: designcraft-cli run --cmd file.newSample
 #[test]
 fn commands_lists_one_line_per_command() {
     let out = cli().args(["commands", "object.fill"]).output().unwrap();
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "object.fill — Fill: {swatch (a swatch's name, e.g. [Paper]), tint?: 0..1, ids?}\n");
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "object.fill — Fill: {swatch (a swatch's name; [Black], [Paper], [None] and [Registration] are built in, swatch.create adds one), tint?: 0..1, ids?}\n"
+    );
     let out = cli().args(["commands", "sample document"]).output().unwrap();
     assert_eq!(String::from_utf8_lossy(&out.stdout), "file.newSample — Sample Document — a multi-page magazine sample\n");
 }

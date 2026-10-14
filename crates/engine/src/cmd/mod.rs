@@ -147,7 +147,7 @@ pub(crate) fn how_to_enable(cmd: &str, reason: &str) -> String {
         NO_DOCUMENT => " file.new or file.open opens one.".into(),
         NOTHING_SELECTED => {
             let acts = find_command(cmd).and_then(|c| c.acts_on_for(reason)).map(|a| format!(" {a}")).unwrap_or_default();
-            format!("{acts} selection.set {{\"ids\": […]}} selects objects; frame.create selects the frame it creates.")
+            format!("{acts} selection.set {{\"ids\": […]}} selects objects. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text instead, so pass \"caret\": false to select the frame, or its id in `ids`.")
         }
         NO_TEXT_POINT => {
             " text.select {\"story\": …, \"anchor\": 0, \"focus\": 0} puts the caret in a story; frame.create with \"content\": \"text\" puts it in the new frame."
@@ -528,6 +528,15 @@ pub use file::{base64_decode, base64_encode, from_bytes, to_bytes};
 pub(crate) use place_text::autoflow as place_text_autoflow;
 
 pub(crate) use crate::describe::{no_object, none_at};
+
+pub(crate) fn swatch_hint(d: &designcraft_doc::Document, name: &str) -> String {
+    use designcraft_color::swatch::{BLACK, NONE, PAPER, REGISTRATION};
+    let bare = |n: &str| n.trim().trim_start_matches('[').trim_end_matches(']').to_lowercase();
+    let meant = d.swatches.iter().find(|s| bare(&s.name) == bare(name)).map(|s| format!(" (did you mean `{}`?)", s.name)).unwrap_or_default();
+    format!(
+        "{meant}; the built-in swatches are {BLACK}, {PAPER}, {NONE} and {REGISTRATION}, brackets included; swatch.create adds one and answers its name"
+    )
+}
 
 pub(crate) fn no_story(id: designcraft_doc::StoryId) -> String {
     format!("no story {} in the document; document.inspect lists the stories with their ids", id.0)

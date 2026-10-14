@@ -29,7 +29,18 @@ works.
 
 A script is one command per line (`command.id {json params}`; `#` comments), JSON lines, or a JSON array of
 `{command, params}`. A parameter string `"$N.path"` becomes that value of step N's result (0-based, `$last` for the
-previous step); `"${N.path}"` interpolates inside longer strings.
+previous step); `"${N.path}"` interpolates inside longer strings. Only those exact forms are references: any other
+string with a `$` is passed as written, so `find.change`'s `"change": "$1 $2"` keeps its groups.
+
+What else the ids don't say (`designcraft-cli help run` has the full list):
+
+- `frame.create` selects the frame it creates, except a text frame: there it puts the caret in the text and leaves the
+  frame unselected, so `object.fill` right after it says "nothing selected". `"caret": false` selects the frame, or
+  pass the answered `id` in `ids`.
+- `find.find` and `find.change` with `"grep": true` take a regular expression of Rust's `regex` crate: no look-around,
+  no backreferences. In `change`, `$1` is the first group, `$name` a named one and `$$` a dollar sign.
+- A fill or stroke names a swatch. `[Black]`, `[Paper]`, `[None]` and `[Registration]` are built in, brackets included;
+  `swatch.create` adds one and answers its name.
 
 ```sh
 cat > page.dcs <<'DCS'

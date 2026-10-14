@@ -1081,7 +1081,7 @@ mod color_tests {
             Err(crate::EngineError::BadParams { cmd, msg }) => {
                 assert_eq!(cmd, command);
                 assert!(msg.contains(fill), "{msg}");
-                assert!(msg.contains("swatch.create") && msg.contains("returned name"), "{msg}");
+                assert!(msg.contains("swatch.create") && msg.contains("[Black], [Paper], [None] and [Registration]"), "{msg}");
             }
             other => panic!("expected BadParams for {command}, got {other:?}"),
         }

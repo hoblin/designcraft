@@ -14,15 +14,12 @@ use serde_json::{Value, json};
 use super::{CommandSpec, bad, bool_or, cmd, f64_or, has_doc, has_selection, ok, point_param, rect_param, spread_param, str_param, targets};
 use crate::{Result, Session};
 
-/// `name` must be a swatch of the document: an unknown name would paint nothing. The error names
-/// the swatch it was probably meant to be (`Paper` → `[Paper]`, a different case).
+/// `name` must be a swatch of the document: an unknown name would paint nothing.
 fn known_swatch(doc: &designcraft_doc::Document, name: &str, cmd: &str, key: &str) -> Result<()> {
     if doc.swatch(name).is_some() {
         return Ok(());
     }
-    let bare = |n: &str| n.trim().trim_start_matches('[').trim_end_matches(']').to_lowercase();
-    let hint = doc.swatches.iter().find(|s| bare(&s.name) == bare(name)).map(|s| format!(" (did you mean `{}`?)", s.name)).unwrap_or_default();
-    Err(bad(cmd, format!("{key}: no swatch named `{name}`{hint}; create one with `swatch.create` and use its returned name")))
+    Err(bad(cmd, format!("{key}: no swatch named `{name}`{}", super::swatch_hint(doc, name))))
 }
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -32,7 +29,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Create Frame",
             [],
             None,
-            "{spread?, rect: [x0,y0,x1,y1] (spread coords), shape?: rectangle|ellipse|polygon, content?: graphic|text|unassigned, sides?: 3–100 (polygon; default 6), starInset?: 0–100 (% for a star polygon), text?: string, caret?: bool, vertical?: bool (text: a new vertical story)}",
+            "{spread?, rect: [x0,y0,x1,y1] (spread coords), shape?: rectangle|ellipse|polygon, content?: graphic|text|unassigned, sides?: 3–100 (polygon; default 6), starInset?: 0–100 (% for a star polygon), text?: string, caret?: bool (text: true by default, which puts the caret in the new text and leaves the frame unselected; false selects the frame), vertical?: bool (text: a new vertical story)}",
             has_doc,
             frame_create
         ),
@@ -179,18 +176,26 @@ pub fn specs() -> Vec<CommandSpec> {
                 )
             }
         ),
-        cmd!("object.fill", "Fill", [], None, "{swatch (a swatch's name, e.g. [Paper]), tint?: 0..1, ids?}", has_selection, |s, p| {
-            let sw = str_param(p, "swatch").ok_or_else(|| bad("object.fill", "missing swatch"))?.to_string();
-            known_swatch(&s.doc()?.doc, &sw, "object.fill", "swatch")?;
-            let tint = f64_or(p, "tint", 1.0) as f32;
-            set_flag(s, p, move |i| i.fill = Fill { swatch: sw.clone(), tint, ..i.fill.clone() }, false)
-        }),
+        cmd!(
+            "object.fill",
+            "Fill",
+            [],
+            None,
+            "{swatch (a swatch's name; [Black], [Paper], [None] and [Registration] are built in, swatch.create adds one), tint?: 0..1, ids?}",
+            has_selection,
+            |s, p| {
+                let sw = str_param(p, "swatch").ok_or_else(|| bad("object.fill", "missing swatch"))?.to_string();
+                known_swatch(&s.doc()?.doc, &sw, "object.fill", "swatch")?;
+                let tint = f64_or(p, "tint", 1.0) as f32;
+                set_flag(s, p, move |i| i.fill = Fill { swatch: sw.clone(), tint, ..i.fill.clone() }, false)
+            }
+        ),
         cmd!(
             "object.stroke",
             "Stroke",
             [],
             None,
-            "{swatch?, tint?, weight?, align?: center|inside|outside, type?: {kind:…}, cap?: butt|round|projecting, join?: miter|round|bevel, miterLimit?, start?, end?: none|simple|simpleWide|triangle|triangleWide|barbed|curved|circle|circleSolid|square|squareSolid|bar, gapSwatch?, gapTint?, gapOverprint?: bool, ids?}",
+            "{swatch? (a swatch's name; [Black], [Paper], [None] and [Registration] are built in, swatch.create adds one), tint?, weight?, align?: center|inside|outside, type?: {kind:…}, cap?: butt|round|projecting, join?: miter|round|bevel, miterLimit?, start?, end?: none|simple|simpleWide|triangle|triangleWide|barbed|curved|circle|circleSolid|square|squareSolid|bar, gapSwatch?, gapTint?, gapOverprint?: bool, ids?}",
             has_selection,
             |s, p| {
                 for key in ["swatch", "gapSwatch"] {

@@ -35,14 +35,22 @@ What the ids don't say:
   numbers them: 1, 2, 3… unless a section renumbers them (iii, A-3). Objects get
   ids that are unique in the whole document; `spread` names the spread an object goes on (0 by
   default).
-- frame.create selects the frame it creates; with \"content\": \"text\" it also puts the caret at the end
-  of its text, so text.insert types there. type.char and type.para act on the selected text, else on
-  all the text of the selected frames: text.select {\"story\": N, \"anchor\": 0, \"focus\": 5} selects
-  bytes 0–5 of a story. A command whose parameters list `ids` acts on those objects, else on the
-  selected ones; selection.set {\"ids\": [...]} selects objects.
+- frame.create selects the frame it creates, except a text frame: with \"content\": \"text\" it puts the
+  caret at the end of the new text, so text.insert types there, and the frame itself is not selected,
+  so object.fill or object.textFrameOptions right after it say \"nothing selected\". \"caret\": false
+  selects the frame instead, or pass the answered id in `ids`. type.char and type.para act on the
+  selected text, else on all the text of the selected frames: text.select {\"story\": N, \"anchor\": 0,
+  \"focus\": 5} selects bytes 0–5 of a story. A command whose parameters list `ids` acts on those
+  objects, else on the selected ones; selection.set {\"ids\": [...]} selects objects.
 - A string parameter \"$N.key\" is the `key` of the answer of --cmd N (counted from 0), \"$last.key\"
   the previous command's: after frame.create answers {\"id\": 8, \"story\": 9}, \"story\": \"$0.story\"
-  passes 9. Inside a longer string, \"${N.key}\" is replaced by the value's text.
+  passes 9. Inside a longer string, \"${N.key}\" is replaced by the value's text. Only those exact
+  forms are references; any other string with a $ is passed as written, so \"$1 $2\" reaches
+  find.change as written.
+- find.find and find.change with \"grep\": true take a regular expression of Rust's regex crate: no
+  look-around, no backreferences. In change, $1 is the first group, $name a named one, $$ a dollar sign.
+- A fill or stroke names a swatch; [Black], [Paper], [None] and [Registration] are built in, brackets
+  included, and swatch.create adds one, answering its name.
 
 Every command prints one line, `COMMAND → ANSWER`: the command's own answer as JSON, or what it changed
 in words. If a command fails, run stops there; what came before it ran, including earlier exports.
@@ -88,7 +96,8 @@ the extension: .pdf, .idml, .epub, else a .png or .jpg of the first page.
 A script is one command per line, `COMMAND {PARAMS}`, or a JSON array of {\"command\", \"params\"}
 objects, or one such object per line. Blank lines and lines starting with # or // are ignored. A
 string parameter \"$N.key\" is the `key` of the answer of step N (counted from 0), \"$last.key\" the
-previous step's; inside a longer string, \"${N.key}\" is replaced by the value's text.
+previous step's; inside a longer string, \"${N.key}\" is replaced by the value's text. Any other string
+with a $ is passed as written.
 
   frame.create {\"rect\": [72, 72, 540, 300], \"content\": \"text\", \"text\": \"Results\"}
   text.select {\"story\": \"$0.story\", \"anchor\": 0, \"focus\": 0}

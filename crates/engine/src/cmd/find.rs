@@ -54,18 +54,18 @@ pub fn specs() -> Vec<CommandSpec> {
             }
         ),
         cmd!(query "find.find", "Find", ["Edit", "Find/Change"], None,
-            "{find, grep?: bool, caseSensitive?: bool, wholeWord?: bool, scope?: document|story|selection, story?} → matches [{story, start, end, text}]",
+            "{find, grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?: bool, wholeWord?: bool, scope?: document|story|selection, story?} → matches [{story, start, end, text}]",
             has_doc, find),
         cmd!(
             "find.change",
             "Change All",
             ["Edit", "Find/Change"],
             None,
-            "{find, change, grep?, caseSensitive?, wholeWord?, scope?, story?, first?: bool (change only the first match), attrs?: {character attributes applied to changed text}} → {count}",
+            "{find, change (with grep, $1 is the first group, $name a named one and $$ a dollar sign), grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?, wholeWord?, scope?, story?, first?: bool (change only the first match), attrs?: {character attributes applied to changed text, as type.char takes them}} → {count}",
             has_doc,
             change
         ),
-        cmd!(noundo "find.next", "Find Next", ["Edit"], Some("Cmd+Alt+F"), "{find, grep?: bool, caseSensitive?: bool, wholeWord?: bool} — selects the next match after the caret", has_doc, find_next),
+        cmd!(noundo "find.next", "Find Next", ["Edit"], Some("Cmd+Alt+F"), "{find, grep?: bool (find is a regular expression, Rust's regex crate: no look-around or backreferences), caseSensitive?: bool, wholeWord?: bool} — selects the next match after the caret", has_doc, find_next),
     ]
 }
 
@@ -122,7 +122,7 @@ fn build(p: &Value) -> Result<regex::Regex> {
         .case_insensitive(!bool_or(p, "caseSensitive", false))
         .multi_line(true)
         .build()
-        .map_err(|e| bad("find", format!("bad GREP: {e}")))
+        .map_err(|e| bad("find", format!("bad regular expression (Rust's regex crate: no look-around or backreferences): {e}")))
 }
 
 fn scope(s: &Session, p: &Value) -> Result<Vec<(StoryId, std::ops::Range<usize>)>> {
@@ -163,7 +163,6 @@ fn find(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(Value::Array(out))
 }
 
-/// Expand `$1`… (GREP) or text metacharacters in the change string.
 fn replacement(p: &Value) -> String {
     let c = str_param(p, "change").unwrap_or("");
     metachars(c, bool_or(p, "grep", false))
@@ -277,6 +276,33 @@ mod tests {
         assert_eq!(s.execute("find.find", &json!({"find": ".^pc"})).unwrap().as_array().unwrap().len(), 1);
         s.execute("find.next", &json!({"find": "or"})).unwrap();
         assert!(s.doc().unwrap().selection.text.is_some());
+    }
+
+    #[test]
+    fn a_dollar_group_in_change_survives_a_script() {
+        let mut s = Session::new();
+        let steps = crate::script::parse(
+            "file.new\n\
+             frame.create {\"rect\": [36, 36, 300, 300], \"content\": \"text\", \"text\": \"12 345 and 7 %\"}\n\
+             find.change {\"find\": \"(\\\\d) (\\\\d|%)\", \"change\": \"$1\u{A0}$2\", \"grep\": true}\n\
+             find.change {\"find\": \"^(\\\\d+)\", \"change\": \"$$$1\", \"grep\": true}\n\
+             story.get {\"story\": \"$1.story\"}",
+        )
+        .unwrap();
+        let r = s.run_script(&steps);
+        assert!(r.failed.is_none(), "{r:?}");
+        assert_eq!(r.results[4]["text"], "$12\u{A0}345 and 7\u{A0}%");
+    }
+
+    #[test]
+    fn a_look_around_names_the_engine() {
+        let mut s = Session::new();
+        s.execute("file.new", &json!({})).unwrap();
+        let e = s.execute("find.find", &json!({"find": r"(?<=\d) (?=\d)", "grep": true})).unwrap_err().to_string();
+        assert!(
+            e.contains("Rust's regex crate: no look-around") && e.contains("look-around, including look-ahead and look-behind, is not supported"),
+            "{e}"
+        );
     }
 }
 
