@@ -27,8 +27,8 @@ execute type.char / style.paragraph.apply → render_page to look at the result.
 document. frame.create selects the frame it creates, except a text frame: there it puts the caret in the text and \
 leaves the frame unselected (caret:false selects the frame instead); a command whose parameters list `ids` acts on \
 those objects, else on the selected ones (selection.set {ids:[…]} selects). A parameter string is a reference only \
-in the exact form \"$N.key\" or \"$last.key\"; any other string with a $ is passed as written, so find.change's \
-change can use $1. The built-in swatches are [Black], [Paper], [None] and [Registration], brackets included. \
+in the exact form \"$N.key\" or \"$last.key\", and \"${N.key}\" inside a longer string; any other $ is passed as \
+written, so find.change's change can use $1. The built-in swatches are [Black], [Paper], [None] and [Registration], brackets included. \
 Parameters a command doesn't take are refused, naming the ones it does; a command with no answer of its own says \
 what it changed.";
 
