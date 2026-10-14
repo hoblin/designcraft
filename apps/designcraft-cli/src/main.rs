@@ -250,20 +250,22 @@ fn run(args: &[String]) -> Result<(), String> {
     let mut s = Session::new();
     let ran = run_steps(&mut s, args, &steps, &at);
     let unsaved: Vec<&designcraft_engine::DocState> = s.documents().iter().filter(|st| st.is_dirty() && st.doc != st.saved_doc).collect();
-    let Some(first) = unsaved.first() else { return ran };
-    let what = match unsaved.as_slice() {
-        [only] if s.active().is_some_and(|a| a.uid == only.uid) => "the document".to_string(),
-        many => format!("{} (file.activate switches documents)", many.iter().map(|st| st.title()).collect::<Vec<_>>().join(", ")),
+    let (what, keep) = match unsaved.as_slice() {
+        [] => return ran,
+        [only] if s.active().is_some_and(|a| a.uid == only.uid) => {
+            ("the document".to_string(), format!("end the run with --export {} to keep them", only.path.as_deref().unwrap_or("FILE.designcraft")))
+        }
+        many => (
+            many.iter().map(|st| st.title()).collect::<Vec<_>>().join(", "),
+            "--export saves only the active document, so file.activate each one and --export it to keep them".to_string(),
+        ),
     };
-    let to = first.path.as_deref().unwrap_or("FILE.designcraft");
     match ran {
         Ok(()) => {
-            eprintln!(
-                "not saved: this run changed {what} and wrote no .designcraft after the change, so the changes are gone; end the run with --export {to} to keep them"
-            );
+            eprintln!("not saved: this run changed {what} and wrote no .designcraft after the change, so the changes are gone; {keep}");
             Ok(())
         }
-        Err(e) => Err(format!("{e} Not saved: the changes before it are gone; end the run with --export {to} to keep them.")),
+        Err(e) => Err(format!("{e} Not saved: the changes before it are gone; {keep}.")),
     }
 }
 

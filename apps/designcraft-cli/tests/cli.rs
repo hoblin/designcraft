@@ -421,5 +421,8 @@ fn a_run_that_fails_after_changing_the_document_says_the_changes_are_gone() {
 fn changes_left_in_a_document_that_is_no_longer_active_are_named() {
     let out = cli().args(["run", "--cmd", r#"frame.create={"rect":[36,36,100,100]}"#, "--cmd", "file.new"]).output().unwrap();
     let err = String::from_utf8_lossy(&out.stderr);
-    assert!(err.starts_with("not saved: this run changed Untitled-1 (file.activate switches documents) and wrote no .designcraft"), "{err}");
+    assert_eq!(
+        err,
+        "not saved: this run changed Untitled-1 and wrote no .designcraft after the change, so the changes are gone; --export saves only the active document, so file.activate each one and --export it to keep them\n"
+    );
 }
